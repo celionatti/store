@@ -1,0 +1,24 @@
+{
+  "name": "store-inventory",
+  "private": true,
+  "version": "1.0.0",
+  "scripts": {
+    "dev:frontend": "vite",
+    "dev:api": "nodemon api-server.cjs",
+    "dev": "concurrently \"npm run dev:frontend\" \"npm run dev:api\"",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1",
+    "dotenv": "^17.3.1",
+    "express": "^5.2.1",
+    "nodemon": "^3.1.14",
+    "vite": "^7.3.1"
+  },
+  "dependencies": {
+    "chart.js": "^4.5.1",
+    "html5-qrcode": "^2.3.8",
+    "mongodb": "^7.1.0"
+  }
+}
