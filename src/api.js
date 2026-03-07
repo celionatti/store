@@ -75,6 +75,8 @@ export const api = {
     return request(`/sales${qs ? `?${qs}` : ''}`);
   },
   createSale: (data) => request('/sales', { method: 'POST', body: data }),
+  deleteSale: (id) => request(`/sales/${id}`, { method: 'DELETE' }),
+  bulkDeleteSales: (before) => request(`/sales?before=${encodeURIComponent(before)}`, { method: 'DELETE' }),
 
   // Dashboard
   getDashboard: () => request('/dashboard'),

@@ -74,6 +74,22 @@ async function salesHandler(req, res) {
       return res.status(201).json({ message: 'Sale recorded', sale });
     }
 
+    if (req.method === 'DELETE') {
+      const { before } = req.query;
+      if (!before) {
+        return res.status(400).json({ error: 'Missing before date parameter for bulk deletion.' });
+      }
+
+      const beforeDate = new Date(before);
+      const result = await db.collection('sales').deleteMany({
+        createdAt: { $lt: beforeDate }
+      });
+
+      return res.status(200).json({ 
+        message: `Successfully deleted ${result.deletedCount} old sales entries.` 
+      });
+    }
+
     return res.status(405).json({ error: 'Method not allowed' });
   } catch (err) {
     console.error('Sales API error:', err);

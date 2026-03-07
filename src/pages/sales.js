@@ -4,12 +4,31 @@
 import { api } from '../api.js';
 import { formatCurrency, formatDateTime, escapeHtml } from '../utils/helpers.js';
 import { showToast } from '../components/toast.js';
+import { showModal } from '../components/modal.js';
+import { getUser } from './login.js';
 
 export function renderSales(container) {
+  const currentUser = getUser();
+  const isAdmin = currentUser?.role === 'admin';
+
   container.innerHTML = `
     <div class="page-header">
       <h2>Sales</h2>
     </div>
+    ${isAdmin ? `
+    <div class="card mb-lg" style="background: var(--color-danger-bg); border-color: rgba(239, 68, 68, 0.2);">
+      <h3 style="margin-bottom: var(--space-md); color: var(--color-danger);">Database Cleanup</h3>
+      <p class="text-sm text-muted mb-md">Remove old sales data securely to save storage space. Warning: This cannot be undone.</p>
+      <div class="form-row" style="align-items: center;">
+        <select id="sl-bulk-delete-select" class="form-select" style="max-width: 200px;">
+          <option value="6">Older than 6 Months</option>
+          <option value="8">Older than 8 Months</option>
+          <option value="12">Older than 1 Year</option>
+        </select>
+        <button id="sl-bulk-delete-btn" class="btn btn-danger">Delete Old Records</button>
+      </div>
+    </div>
+    ` : ''}
     <div class="card mb-lg">
       <h3 style="margin-bottom: var(--space-md);">Record New Sale</h3>
       <form id="sale-form">
@@ -186,9 +205,30 @@ export function renderSales(container) {
     } catch (err) {
       showToast(err.message || 'Failed to record sale', 'error');
     } finally {
-      btn.disabled = false;
       btn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg> Record Sale`;
     }
+  });
+
+  const bulkBtn = document.getElementById('sl-bulk-delete-btn');
+  bulkBtn?.addEventListener('click', () => {
+    const months = parseInt(document.getElementById('sl-bulk-delete-select').value);
+    const date = new Date();
+    date.setMonth(date.getMonth() - months);
+    const beforeStr = date.toISOString().split('T')[0];
+    
+    showModal(
+      'Confirm Bulk Deletion',
+      `Are you unconditionally sure you want to permanently delete all sales recorded before <strong>${beforeStr}</strong>?`,
+      async () => {
+        try {
+          const res = await api.bulkDeleteSales(beforeStr);
+          showToast(res.message || 'Old records deleted successfully', 'success');
+          loadSalesHistory();
+        } catch(err) {
+          showToast(err.message || 'Failed to bulk delete records', 'error');
+        }
+      }
+    );
   });
 
   async function loadProductOptions() {
@@ -235,6 +275,7 @@ export function renderSales(container) {
                 <th>Total</th>
                 <th>Profit</th>
                 <th>Date</th>
+                <th>Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -246,12 +287,37 @@ export function renderSales(container) {
                   <td class="font-bold">${formatCurrency(s.totalAmount)}</td>
                   <td class="text-success font-bold hide-mobile">${formatCurrency(s.profit)}</td>
                   <td class="text-muted text-sm hide-mobile">${formatDateTime(s.createdAt)}</td>
+                  <td>
+                    <button class="btn-icon danger" data-refund="${s._id}" title="Refund/Cancel Sale">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline><line x1="9" y1="9" x2="15" y2="15"></line><line x1="15" y1="9" x2="9" y2="15"></line></svg>
+                    </button>
+                  </td>
                 </tr>
               `).join('')}
             </tbody>
           </table>
         </div>
       `;
+
+      wrapper.querySelectorAll('button[data-refund]').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const saleId = btn.dataset.refund;
+          showModal(
+            'Refund & Cancel Sale',
+            'Are you sure you want to completely reverse this sale? The quantity will be returned to the main inventory.',
+            async () => {
+              try {
+                await api.deleteSale(saleId);
+                showToast('Sale effectively refunded and reversed.', 'success');
+                loadSalesHistory();
+                loadProductOptions(); // update available qty
+              } catch (err) {
+                showToast(err.message || 'Failed to reverse sale', 'error');
+              }
+            }
+          );
+        });
+      });
     } catch (err) {
       document.getElementById('sales-history').innerHTML =
         '<div class="empty-state"><p>Failed to load sales.</p></div>';
