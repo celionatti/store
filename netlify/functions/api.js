@@ -126,4 +126,8 @@ app.all('{*path}', async (req, res) => {
   }
 });
 
-module.exports.handler = serverless(app);
+module.exports.handler = serverless(app, {
+  request: function (req, event, context) {
+    req.apiGateway = { event, context };
+  }
+});
