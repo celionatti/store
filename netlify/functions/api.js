@@ -34,7 +34,17 @@ app.all('{*path}', async (req, res) => {
   let filePath = null;
   let query = { ...req.query };
 
-  // Try different ways to find the api folder (Netlify environment can be inconsistent)
+  // Debug: Log body status
+  console.log(`[Netlify Bridge] Method: ${req.method}, Body present: ${!!req.body}, Body Keys: ${req.body ? Object.keys(req.body) : 'N/A'}`);
+  
+  // Robust body parsing fallback (Netlify body can be stringified)
+  if (['POST', 'PUT', 'PATCH'].includes(req.method) && (!req.body || Object.keys(req.body).length === 0)) {
+    if (typeof req.body === 'string' && req.body.trim().startsWith('{')) {
+      try { req.body = JSON.parse(req.body); } catch(e) {}
+    }
+  }
+
+  // Try different ways to find the api folder
   const roots = [
     process.cwd(),
     path.join(__dirname, '..', '..'), // Relative to netlify/functions/api.js

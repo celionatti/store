@@ -24,6 +24,16 @@ app.all('/api/{*path}', async (req, res) => {
   let filePath = null;
   let query = { ...req.query };
 
+  // Debug: Log body status
+  console.log(`[API Debug] Method: ${req.method}, Body present: ${!!req.body}, Body Keys: ${req.body ? Object.keys(req.body) : 'N/A'}`);
+  
+  // Robust body parsing fallback
+  if (['POST', 'PUT', 'PATCH'].includes(req.method) && (!req.body || Object.keys(req.body).length === 0)) {
+    if (typeof req.body === 'string' && req.body.trim().startsWith('{')) {
+      try { req.body = JSON.parse(req.body); } catch(e) {}
+    }
+  }
+
   const fullPath = path.join(__dirname, 'api', apiPath);
   
   if (fs.existsSync(fullPath + '.js')) {
