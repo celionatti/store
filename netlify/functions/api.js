@@ -3,6 +3,13 @@ const serverless = require("serverless-http");
 const path = require("path");
 const fs = require("fs");
 
+// Dependency hints for Netlify bundler (since we use dynamic requires)
+try {
+  require("mongodb");
+} catch (e) {
+  // Ignore at runtime, this is just for the bundler
+}
+
 const app = express();
 app.use(express.json());
 
