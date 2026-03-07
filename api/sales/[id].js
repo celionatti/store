@@ -8,7 +8,14 @@ const { withAuth } = require('../_utils/auth');
 
 async function singleSaleHandler(req, res) {
   try {
-    const { id } = req.query;
+    // Attempt to get ID from query string (if parsed by Express layer) or manually from the URL path
+    let id = req.query?.id;
+    if (!id) {
+       // Manual extraction strategy: split by '/' and get the last segment
+       const urlParts = req.url.split('?')[0].split('/');
+       id = urlParts[urlParts.length - 1];
+    }
+
     if (!id || !ObjectId.isValid(id)) {
       return res.status(400).json({ error: 'Invalid sale ID' });
     }
