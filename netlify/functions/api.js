@@ -7,7 +7,7 @@ const app = express();
 app.use(express.json());
 
 // Mock Vercel serverless environment logic
-app.all('*', async (req, res) => {
+app.all('{*path}', async (req, res) => {
   // Normalize path: handle both /api/foo and just /foo (depending on Netlify redirect behavior)
   let apiPath = req.path;
   if (apiPath.startsWith('/.netlify/functions/api')) {
