@@ -3,7 +3,7 @@
  */
 import { api } from '../api.js';
 import { createStatsCard } from '../components/statsCard.js';
-import { formatCurrency, escapeHtml } from '../utils/helpers.js';
+import { formatCurrency, escapeHtml, escapeCSV } from '../utils/helpers.js';
 import { showToast } from '../components/toast.js';
 
 export function renderReports(container) {
@@ -84,15 +84,15 @@ export function renderReports(container) {
   async function exportToCSV(data, filename) {
     if (!data || data.length === 0) return;
     
-    const headers = ['Date', 'Product', 'Quantity', 'Unit Price', 'Cost Price', 'Total', 'Profit'];
+    const headers = ['Date', 'Product', 'Quantity', 'Unit Price', 'Cost Price', 'Total', 'Profit'].map(escapeCSV);
     const rows = data.map(s => [
-      new Date(s.createdAt).toLocaleDateString(),
-      s.productName,
-      s.quantity,
-      s.unitPrice,
-      s.costPrice,
-      s.totalAmount,
-      s.profit
+      escapeCSV(new Date(s.createdAt).toLocaleDateString()),
+      escapeCSV(s.productName),
+      escapeCSV(s.quantity),
+      escapeCSV(s.unitPrice),
+      escapeCSV(s.costPrice),
+      escapeCSV(s.totalAmount),
+      escapeCSV(s.profit)
     ]);
 
     const csvContent = [headers, ...rows].map(e => e.join(',')).join('\n');

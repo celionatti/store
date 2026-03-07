@@ -2,7 +2,7 @@
  * Products List Page
  */
 import { api } from '../api.js';
-import { formatCurrency, debounce, getStockBadge, escapeHtml } from '../utils/helpers.js';
+import { formatCurrency, debounce, getStockBadge, escapeHtml, escapeCSV } from '../utils/helpers.js';
 import { showToast } from '../components/toast.js';
 import { showModal } from '../components/modal.js';
 
@@ -49,16 +49,16 @@ export function renderProducts(container) {
   document.getElementById('export-products')?.addEventListener('click', () => {
     if (allProducts.length === 0) return;
     
-    const headers = ['Product Name', 'SKU', 'Barcode', 'Category', 'Cost Price', 'Selling Price', 'Quantity', 'IMEIs'];
+    const headers = ['Product Name', 'SKU', 'Barcode', 'Category', 'Cost Price', 'Selling Price', 'Quantity', 'IMEIs'].map(escapeCSV);
     const rows = allProducts.map(p => [
-      p.name,
-      p.sku,
-      p.barcode || '',
-      p.category || '',
-      p.costPrice,
-      p.sellingPrice,
-      p.quantity,
-      (p.itemBarcodes || []).join('; ')
+      escapeCSV(p.name),
+      escapeCSV(p.sku),
+      escapeCSV(p.barcode || ''),
+      escapeCSV(p.category || ''),
+      escapeCSV(p.costPrice),
+      escapeCSV(p.sellingPrice),
+      escapeCSV(p.quantity),
+      escapeCSV((p.itemBarcodes || []).join('; '))
     ]);
 
     const csvContent = [headers, ...rows].map(e => e.join(',')).join('\n');
