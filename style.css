@@ -916,7 +916,7 @@ tbody tr:last-child td {
   position: fixed;
   bottom: 84px;
   right: var(--space-lg);
-  z-index: 999;
+  z-index: 1001;
 }
 
 .fab {

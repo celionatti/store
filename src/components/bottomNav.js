@@ -61,20 +61,24 @@ export function renderBottomNav() {
   const fab = document.getElementById('main-fab');
   const fabContainer = document.getElementById('fab-container');
   
-  fab?.addEventListener('click', (e) => {
-    e.stopPropagation();
-    fabContainer.classList.toggle('open');
-  });
+  if (fab && !fab.dataset.initialized) {
+    fab.addEventListener('click', (e) => {
+      e.stopPropagation();
+      fabContainer.classList.toggle('open');
+    });
 
-  document.addEventListener('click', () => {
-    fabContainer?.classList.remove('open');
-  });
-
-  // Close FAB menu when a link is clicked
-  const fabMenu = document.getElementById('fab-menu');
-  fabMenu?.addEventListener('click', (e) => {
-    if (e.target.closest('a')) {
+    document.addEventListener('click', () => {
       fabContainer?.classList.remove('open');
-    }
-  });
+    });
+
+    // Close FAB menu when a link is clicked
+    const fabMenu = document.getElementById('fab-menu');
+    fabMenu?.addEventListener('click', (e) => {
+      if (e.target.closest('a')) {
+        fabContainer?.classList.remove('open');
+      }
+    });
+
+    fab.dataset.initialized = 'true';
+  }
 }
