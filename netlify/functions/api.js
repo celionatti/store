@@ -8,7 +8,7 @@ app.use(express.json());
 
 // Mock Vercel serverless environment logic
 app.all('{*path}', async (req, res) => {
-  // Normalize path: handle both /api/foo and just /foo (depending on Netlify redirect behavior)
+  // Normalize path
   let apiPath = req.path;
   if (apiPath.startsWith('/.netlify/functions/api')) {
     apiPath = apiPath.replace('/.netlify/functions/api', '');
@@ -18,11 +18,11 @@ app.all('{*path}', async (req, res) => {
   }
   if (!apiPath.startsWith('/')) apiPath = '/' + apiPath;
 
-  console.log(`[Netlify Bridge] Request: ${req.method} ${req.path} -> normalized apiPath: ${apiPath}`);
-  
   if (apiPath === '/health' || apiPath === '/status') {
     return res.status(200).json({ status: 'ok', message: 'API Bridge is running' });
   }
+
+  console.log(`[Netlify Bridge] Request: ${req.method} ${req.path} -> normalized apiPath: ${apiPath}`);
 
   let filePath = null;
   let query = { ...req.query };
@@ -112,7 +112,10 @@ app.all('{*path}', async (req, res) => {
       res.status(500).json({ 
         error: 'Internal Server Error', 
         details: err.message,
-        path: req.path
+        stack: err.stack,
+        path: req.path,
+        apiPath: apiPath,
+        resolvedPath: filePath
       });
     }
   } else {
