@@ -37,10 +37,18 @@ app.all('{*path}', async (req, res) => {
   // Debug: Log body status
   console.log(`[Netlify Bridge] Method: ${req.method}, Body present: ${!!req.body}, Body Keys: ${req.body ? Object.keys(req.body) : 'N/A'}`);
   
-  // Robust body parsing fallback (Netlify body can be stringified)
+  // Robust body parsing fallback (Netlify body can be stringified or base64 encoded)
   if (['POST', 'PUT', 'PATCH'].includes(req.method) && (!req.body || Object.keys(req.body).length === 0)) {
-    if (typeof req.body === 'string' && req.body.trim().startsWith('{')) {
+    if (req.apiGateway && req.apiGateway.event && req.apiGateway.event.body) {
+      let rawBody = req.apiGateway.event.body;
+      if (req.apiGateway.event.isBase64Encoded) {
+        rawBody = Buffer.from(rawBody, 'base64').toString('utf-8');
+      }
+      try { req.body = JSON.parse(rawBody); } catch(e) {}
+    } else if (typeof req.body === 'string' && req.body.trim().startsWith('{')) {
       try { req.body = JSON.parse(req.body); } catch(e) {}
+    } else if (Buffer.isBuffer(req.body)) {
+      try { req.body = JSON.parse(req.body.toString('utf-8')); } catch(e) {}
     }
   }
 
@@ -95,34 +103,11 @@ app.all('{*path}', async (req, res) => {
     try {
       const handler = require(filePath);
 
-      // Mock Vercel req/res objects
+      // Merge query params
       req.query = { ...query, ...req.query };
-      const vReq = req;
-      const vRes = {
-        status: (code) => {
-          res.status(code);
-          return vRes;
-        },
-        json: (data) => {
-          res.json(data);
-          return vRes;
-        },
-        setHeader: (name, value) => {
-          res.setHeader(name, value);
-          return vRes;
-        },
-        end: (data) => {
-          res.end(data);
-          return vRes;
-        },
-        // Add more mocks if needed
-        send: (data) => {
-          res.send(data);
-          return vRes;
-        }
-      };
 
-      await handler(vReq, vRes);
+      // Call handler directly with native Express req and res
+      await handler(req, res);
       console.log(`[Netlify Bridge] Handler successfully executed`);
     } catch (err) {
       console.error(`[Netlify Bridge Error] ${err.stack || err.message}`);

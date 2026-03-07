@@ -64,29 +64,11 @@ app.all('/api/{*path}', async (req, res) => {
       delete require.cache[require.resolve(filePath)];
       const handler = require(filePath);
       
-      // Mock Vercel req/res objects
+      // Merge query params
       req.query = { ...query, ...req.query };
-      const vReq = req;
-      const vRes = {
-        status: (code) => {
-          res.status(code);
-          return vRes;
-        },
-        json: (data) => {
-          res.json(data);
-          return vRes;
-        },
-        setHeader: (name, value) => {
-          res.setHeader(name, value);
-          return vRes;
-        },
-        end: (data) => {
-          res.end(data);
-          return vRes;
-        }
-      };
 
-      await handler(vReq, vRes);
+      // Call handler directly with native Express req and res
+      await handler(req, res);
     } catch (err) {
       console.error(`[API Error] ${err.message}`);
       res.status(500).json({ error: 'Internal Server Error', details: err.message });
