@@ -11,7 +11,6 @@ const BOTTOM_NAV_ITEMS = [
   { label: 'Reports', href: '#/reports', icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>' },
 ];
 
-import { getCurrentCurrency, setCurrentCurrency } from '../utils/helpers.js';
 import { getUser } from '../pages/login.js';
 
 export function renderBottomNav() {
@@ -19,7 +18,6 @@ export function renderBottomNav() {
   if (!container) return;
 
   const currentHash = location.hash || '#/';
-  const currentCurrency = getCurrentCurrency();
   
   const user = getUser();
   const role = user?.role || 'worker';
@@ -39,24 +37,8 @@ export function renderBottomNav() {
     `;
   }
 
-  // Add Currency Selector to bottom nav
-  html += `
-    <div class="bottom-nav-item">
-      <select id="bottom-currency-select" class="currency-select-minimal">
-        <option value="NGN" ${currentCurrency === 'NGN' ? 'selected' : ''}>₦</option>
-        <option value="USD" ${currentCurrency === 'USD' ? 'selected' : ''}>$</option>
-      </select>
-      <span class="text-xs font-bold">Currency</span>
-    </div>
-  `;
-
   container.innerHTML = html;
 
-  const bottomCurrencySelect = document.getElementById('bottom-currency-select');
-  bottomCurrencySelect?.addEventListener('change', (e) => {
-    setCurrentCurrency(e.target.value);
-    window.location.reload();
-  });
 
   // Floating Action Button Logic
   const fab = document.getElementById('main-fab');

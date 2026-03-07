@@ -1,4 +1,4 @@
-import { formatCurrency, debounce, getStockBadge, escapeHtml, getCurrentCurrency, setCurrentCurrency } from '../utils/helpers.js';
+import { formatCurrency, debounce, getStockBadge, escapeHtml } from '../utils/helpers.js';
 import { logout, getUser } from '../pages/login.js';
 
 const NAV_ITEMS = [
@@ -63,16 +63,6 @@ export function renderSidebar() {
     }
   }
   nav.innerHTML = html;
-
-  // Handle Currency Selector
-  const currencySelect = document.getElementById('currency-select');
-  if (currencySelect) {
-    currencySelect.value = getCurrentCurrency();
-    currencySelect.addEventListener('change', (e) => {
-      setCurrentCurrency(e.target.value);
-      window.location.reload();
-    });
-  }
 
   // Handle Logout
   document.getElementById('logout-btn')?.addEventListener('click', () => {

@@ -60,7 +60,7 @@ export function renderSettings(container) {
       showToast('Settings saved successfully', 'success');
       
       // Update local storage currency if it changed
-      localStorage.setItem('store_currency', payload.currency);
+      import('../utils/helpers.js').then(h => h.setCurrentCurrency(payload.currency));
       
     } catch (err) {
       showToast(err.message || 'Failed to save settings', 'error');
