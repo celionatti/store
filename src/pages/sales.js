@@ -259,6 +259,32 @@ export function renderSales(container) {
       const wrapper = document.getElementById('sales-history');
       if (!wrapper) return;
 
+      // Update bulk delete button visibility based on records existence
+      const bulkSelect = document.getElementById('sl-bulk-delete-select');
+      const bulkBtn = document.getElementById('sl-bulk-delete-btn');
+      
+      const checkBulkEligibility = () => {
+        if (!bulkBtn || !bulkSelect || sales.length === 0) {
+          if (bulkBtn) bulkBtn.style.display = 'none';
+          return;
+        }
+        
+        const months = parseInt(bulkSelect.value);
+        const cutoffDate = new Date();
+        cutoffDate.setMonth(cutoffDate.getMonth() - months);
+        
+        // Check if any sale is older than the cutoff date
+        const hasOldRecords = sales.some(s => new Date(s.createdAt) < cutoffDate);
+        bulkBtn.style.display = hasOldRecords ? 'inline-block' : 'none';
+      };
+
+      if (bulkSelect) {
+        // Run once on load
+        checkBulkEligibility();
+        // Run whenever the dropdown changes
+        bulkSelect.addEventListener('change', checkBulkEligibility);
+      }
+
       if (sales.length === 0) {
         wrapper.innerHTML = '<div class="empty-state"><p>No sales recorded yet.</p></div>';
         return;
