@@ -11,6 +11,25 @@ try {
 }
 
 const app = express();
+
+// Custom Netlify Body Parser Middleware
+app.use((req, res, next) => {
+  if (req.apiGateway && req.apiGateway.event && req.apiGateway.event.body) {
+    let rawBody = req.apiGateway.event.body;
+    if (req.apiGateway.event.isBase64Encoded) {
+      rawBody = Buffer.from(rawBody, 'base64').toString('utf-8');
+    }
+    
+    // Inject parsed JSON into req.body directly
+    try {
+      req.body = JSON.parse(rawBody);
+    } catch(e) {
+      req.body = rawBody;
+    }
+  }
+  next();
+});
+
 app.use(express.json());
 
 // Mock Vercel serverless environment logic
@@ -33,24 +52,6 @@ app.all('{*path}', async (req, res) => {
 
   let filePath = null;
   let query = { ...req.query };
-
-  // Debug: Log body status
-  console.log(`[Netlify Bridge] Method: ${req.method}, Body present: ${!!req.body}, Body Keys: ${req.body ? Object.keys(req.body) : 'N/A'}`);
-  
-  // Robust body parsing fallback (Netlify body can be stringified or base64 encoded)
-  if (['POST', 'PUT', 'PATCH'].includes(req.method) && (!req.body || Object.keys(req.body).length === 0)) {
-    if (req.apiGateway && req.apiGateway.event && req.apiGateway.event.body) {
-      let rawBody = req.apiGateway.event.body;
-      if (req.apiGateway.event.isBase64Encoded) {
-        rawBody = Buffer.from(rawBody, 'base64').toString('utf-8');
-      }
-      try { req.body = JSON.parse(rawBody); } catch(e) {}
-    } else if (typeof req.body === 'string' && req.body.trim().startsWith('{')) {
-      try { req.body = JSON.parse(req.body); } catch(e) {}
-    } else if (Buffer.isBuffer(req.body)) {
-      try { req.body = JSON.parse(req.body.toString('utf-8')); } catch(e) {}
-    }
-  }
 
   // Try different ways to find the api folder
   const roots = [
