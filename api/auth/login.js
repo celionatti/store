@@ -26,7 +26,7 @@ module.exports = async function handler(req, res) {
     const { db } = await connectToDatabase();
     const collection = db.collection('users');
 
-    if (req.method === 'POST') {
+    if (req.method.toUpperCase() === 'POST') {
       const { username, password } = req.body;
 
       if (!username || !password) {
@@ -63,7 +63,13 @@ module.exports = async function handler(req, res) {
       });
     }
 
-    return res.status(405).json({ error: 'Method not allowed' });
+
+  
+    return res.status(405).json({ 
+      error: 'Method not allowed', 
+      receivedMethod: req.method,
+      expectedMethod: 'POST'
+    });
   } catch (err) {
     console.error('Auth Login Error:', err);
     return res.status(500).json({ error: 'Internal server error' });
