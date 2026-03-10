@@ -5,6 +5,7 @@ import { api } from '../api.js';
 import { showToast } from '../components/toast.js';
 import { showModal } from '../components/modal.js';
 import { escapeHtml } from '../utils/helpers.js';
+import { renderPagination } from '../components/pagination.js';
 import { getUser } from './login.js';
 
 export function renderWorkers(container) {
@@ -23,6 +24,10 @@ export function renderWorkers(container) {
     </div>
   `;
 
+  let allWorkers = [];
+  let currentPage = 1;
+  const itemsPerPage = 10;
+
   loadWorkers();
 
   async function loadWorkers() {
@@ -39,6 +44,14 @@ export function renderWorkers(container) {
     const wrapper = document.getElementById('workers-table');
     if (!wrapper) return;
 
+    if (workers.length === 0) {
+      wrapper.innerHTML = '<div class="empty-state"><p>No workers found.</p></div>';
+      return;
+    }
+
+    const start = (currentPage - 1) * itemsPerPage;
+    const paginated = workers.slice(start, start + itemsPerPage);
+
     wrapper.innerHTML = `
       <div class="table-wrapper">
         <table>
@@ -52,7 +65,7 @@ export function renderWorkers(container) {
             </tr>
           </thead>
           <tbody>
-            ${workers.map(w => {
+            ${paginated.map(w => {
               const isCurrentUser = w._id === currentUser?.id;
               const rowClass = isCurrentUser ? 'style="background-color: var(--color-surface);"' : '';
               return `
@@ -77,7 +90,20 @@ export function renderWorkers(container) {
           </tbody>
         </table>
       </div>
+      <div id="workers-pagination"></div>
     `;
+
+    renderPagination(
+      document.getElementById('workers-pagination'),
+      workers.length,
+      currentPage,
+      itemsPerPage,
+      (newPage) => {
+        currentPage = newPage;
+        renderTable(workers);
+        window.scrollTo(0, 0);
+      }
+    );
 
     // Attach delete listeners
     wrapper.querySelectorAll('[data-delete-worker]').forEach(btn => {

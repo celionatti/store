@@ -13,7 +13,7 @@ export function renderAddProduct(container, params = {}) {
       <h2>${isEdit ? "Edit Product" : "Add New Product"}</h2>
       <a href="#/products" class="btn btn-outline">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>
-        Back to Products
+        <span class="hide-mobile">Back to Products</span>
       </a>
     </div>
     <div class="card">
@@ -36,7 +36,7 @@ export function renderAddProduct(container, params = {}) {
               <input type="text" id="pf-barcode" class="form-input" placeholder="e.g. 123456789012" />
               <button type="button" class="btn btn-outline btn-sm" id="scan-barcode" title="Scan Barcode">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>
-                Scan General
+                <span class="hide-mobile">Scan General</span>
               </button>
             </div>
           </div>
@@ -47,7 +47,7 @@ export function renderAddProduct(container, params = {}) {
               <button type="button" class="btn btn-outline btn-sm" id="add-imei">Add</button>
               <button type="button" class="btn btn-outline btn-sm" id="scan-imei" title="Scan IMEI">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>
-                Scan IMEI
+                <span class="hide-mobile">Scan IMEI</span>
               </button>
             </div>
             <div id="imei-list" class="flex flex-wrap gap-sm"></div>

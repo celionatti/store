@@ -5,6 +5,7 @@ import { api } from '../api.js';
 import { formatCurrency, debounce, getStockBadge, escapeHtml, escapeCSV } from '../utils/helpers.js';
 import { showToast } from '../components/toast.js';
 import { showModal } from '../components/modal.js';
+import { renderPagination } from '../components/pagination.js';
 
 export function renderProducts(container) {
   container.innerHTML = `
@@ -17,11 +18,11 @@ export function renderProducts(container) {
         </div>
         <button class="btn btn-outline" id="export-products" title="Export to CSV">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-          Export
+          <span class="hide-mobile">Export</span>
         </button>
         <a href="#/products/new" class="btn btn-primary">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-          Add Product
+          <span class="hide-mobile">Add Product</span>
         </a>
       </div>
     </div>
@@ -31,12 +32,15 @@ export function renderProducts(container) {
   `;
 
   let allProducts = [];
+  let currentPage = 1;
+  const itemsPerPage = 10;
 
   loadProducts();
 
   const searchInput = document.getElementById('product-search');
   searchInput?.addEventListener('input', debounce((e) => {
     const query = e.target.value.toLowerCase();
+    currentPage = 1; // Reset to first page on search
     renderTable(allProducts.filter(p =>
       p.name.toLowerCase().includes(query) ||
       p.sku.toLowerCase().includes(query) ||
@@ -100,6 +104,10 @@ export function renderProducts(container) {
       return;
     }
 
+    // Slice for pagination
+    const start = (currentPage - 1) * itemsPerPage;
+    const paginatedProducts = products.slice(start, start + itemsPerPage);
+
     wrapper.innerHTML = `
       <div class="table-wrapper">
         <table>
@@ -116,7 +124,7 @@ export function renderProducts(container) {
             </tr>
           </thead>
           <tbody>
-            ${products.map(p => `
+            ${paginatedProducts.map(p => `
               <tr>
                 <td><strong>${escapeHtml(p.name)}</strong></td>
                 <td class="text-muted text-sm">${escapeHtml(p.sku)}</td>
@@ -140,7 +148,20 @@ export function renderProducts(container) {
           </tbody>
         </table>
       </div>
+      <div id="products-pagination"></div>
     `;
+
+    renderPagination(
+      document.getElementById('products-pagination'),
+      products.length,
+      currentPage,
+      itemsPerPage,
+      (newPage) => {
+        currentPage = newPage;
+        renderTable(products);
+        window.scrollTo(0, 0);
+      }
+    );
 
     // Delete handlers
     wrapper.querySelectorAll('[data-delete]').forEach(btn => {

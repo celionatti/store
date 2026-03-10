@@ -5,6 +5,7 @@ import { api } from '../api.js';
 import { formatCurrency, formatDateTime, escapeHtml } from '../utils/helpers.js';
 import { showToast } from '../components/toast.js';
 import { showModal } from '../components/modal.js';
+import { renderPagination } from '../components/pagination.js';
 import { getUser } from './login.js';
 
 export function renderSales(container, params = {}) {
@@ -70,7 +71,7 @@ export function renderSales(container, params = {}) {
         </div>
         <button type="submit" class="btn btn-success mt-md" id="sl-submit">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>
-          Record Sale
+          <span class="hide-mobile">Record Sale</span>
         </button>
       </form>
     </div>
@@ -84,6 +85,8 @@ export function renderSales(container, params = {}) {
   `;
 
   let productsMap = {};
+  let currentSalesPage = 1;
+  const salesPerPage = 10;
 
   loadProductOptions();
   loadSalesHistory();
@@ -309,6 +312,10 @@ export function renderSales(container, params = {}) {
         return;
       }
 
+      // Slice for pagination
+      const start = (currentSalesPage - 1) * salesPerPage;
+      const paginatedSales = sales.slice(start, start + salesPerPage);
+
       wrapper.innerHTML = `
         <div class="table-wrapper">
           <table>
@@ -324,7 +331,7 @@ export function renderSales(container, params = {}) {
               </tr>
             </thead>
             <tbody>
-              ${sales.map(s => `
+              ${paginatedSales.map(s => `
                 <tr>
                   <td><strong>${escapeHtml(s.productName || '—')}</strong>${s.soldItemBarcode ? `<br><small class="text-muted" style="word-break: break-all;">IMEI: ${escapeHtml(s.soldItemBarcode)}</small>` : ''}</td>
                   <td>${s.quantity}</td>
@@ -342,7 +349,22 @@ export function renderSales(container, params = {}) {
             </tbody>
           </table>
         </div>
+        <div id="sales-pagination"></div>
       `;
+
+      renderPagination(
+        document.getElementById('sales-pagination'),
+        sales.length,
+        currentSalesPage,
+        salesPerPage,
+        (newPage) => {
+          currentSalesPage = newPage;
+          loadSalesHistory(); // In this case, we re-fetch or re-render
+          // Since loadSalesHistory fetches again, we might want to just renderTable 
+          // but the current structure fetches every time. For client-side, we should 
+          // separate fetch from render. Let's fix that.
+        }
+      );
 
       wrapper.querySelectorAll('button[data-refund]').forEach(btn => {
         btn.addEventListener('click', () => {

@@ -4,6 +4,7 @@
 import { api } from '../api.js';
 import { showToast } from '../components/toast.js';
 import { escapeHtml } from '../utils/helpers.js';
+import { renderPagination } from '../components/pagination.js';
 
 export function renderCustomers(container) {
   container.innerHTML = `
@@ -18,6 +19,10 @@ export function renderCustomers(container) {
       <div class="loader">Loading customers…</div>
     </div>
   `;
+
+  let allCustomers = [];
+  let currentPage = 1;
+  const itemsPerPage = 10;
 
   loadCustomers();
 
@@ -35,6 +40,14 @@ export function renderCustomers(container) {
     const wrapper = document.getElementById('customers-table');
     if (!wrapper) return;
 
+    if (customers.length === 0) {
+      wrapper.innerHTML = '<div class="empty-state"><p>No customers found.</p></div>';
+      return;
+    }
+
+    const start = (currentPage - 1) * itemsPerPage;
+    const paginated = customers.slice(start, start + itemsPerPage);
+
     wrapper.innerHTML = `
       <div class="table-wrapper">
         <table>
@@ -48,7 +61,7 @@ export function renderCustomers(container) {
             </tr>
           </thead>
           <tbody>
-            ${customers.map(c => `
+            ${paginated.map(c => `
               <tr>
                 <td><strong>${escapeHtml(c.name)}</strong></td>
                 <td>${escapeHtml(c.email)}</td>
@@ -64,6 +77,19 @@ export function renderCustomers(container) {
           </tbody>
         </table>
       </div>
+      <div id="customers-pagination"></div>
     `;
+
+    renderPagination(
+      document.getElementById('customers-pagination'),
+      customers.length,
+      currentPage,
+      itemsPerPage,
+      (newPage) => {
+        currentPage = newPage;
+        renderTable(customers);
+        window.scrollTo(0, 0);
+      }
+    );
   }
 }
