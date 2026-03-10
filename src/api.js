@@ -94,6 +94,7 @@ export const api = {
     return request(`/expenses${qs ? `?${qs}` : ''}`);
   },
   createExpense: (data) => request('/expenses', { method: 'POST', body: data }),
+  deleteExpense: (id) => request(`/expenses/${id}`, { method: 'DELETE' }),
 
   // Settings
   getSettings: () => request('/settings'),
