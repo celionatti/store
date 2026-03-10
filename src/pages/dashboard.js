@@ -12,6 +12,12 @@ export function renderDashboard(container) {
     <div class="page-header">
       <h2>Dashboard</h2>
     </div>
+    <div class="info-note">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20" style="color:var(--color-info); flex-shrink:0;"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+      <div>
+        <strong>Inventory Insight:</strong> Primary value is your <strong>Investment</strong> (Cost Price). <strong>Potential</strong> is your expected Revenue (Selling Price).
+      </div>
+    </div>
     <div class="stats-grid" id="stats-grid">
       <div class="stat-card"><div class="loader">Loading…</div></div>
       <div class="stat-card"><div class="loader">Loading…</div></div>
@@ -54,8 +60,9 @@ export function renderDashboard(container) {
           ${createStatsCard('Total Products', data.totalProducts ?? 0, 'brand',
             '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 01-8 0"/></svg>'
           )}
-          ${createStatsCard('Inventory Value', formatCurrency(data.inventoryValue ?? 0), 'info',
-            '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2" ry="2"/><path d="M16 21V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v16"/></svg>'
+          ${createStatsCard('Inventory Value', formatCurrency(data.investmentValue ?? 0), 'info',
+            '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2" ry="2"/><path d="M16 21V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v16"/></svg>',
+            `Potential: ${formatCurrency(data.potentialValue ?? 0)}`
           )}
           ${createStatsCard("Today's Sales", formatCurrency(data.todaySales ?? 0), 'success',
             '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>'

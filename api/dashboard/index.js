@@ -18,16 +18,18 @@ async function dashboardHandler(req, res) {
     // Total products
     const totalProducts = await productsCol.countDocuments();
 
-    // Inventory value
+    // Inventory values (Investment vs Potential)
     const inventoryAgg = await productsCol.aggregate([
       {
         $group: {
           _id: null,
-          totalValue: { $sum: { $multiply: ['$sellingPrice', '$quantity'] } },
+          totalCost: { $sum: { $multiply: ['$costPrice', '$quantity'] } },
+          totalSelling: { $sum: { $multiply: ['$sellingPrice', '$quantity'] } },
         },
       },
     ]).toArray();
-    const inventoryValue = inventoryAgg[0]?.totalValue || 0;
+    const investmentValue = inventoryAgg[0]?.totalCost || 0;
+    const potentialValue = inventoryAgg[0]?.totalSelling || 0;
 
     // Low stock products
     const lowStockProducts = await productsCol.find({
@@ -89,7 +91,8 @@ async function dashboardHandler(req, res) {
 
     return res.status(200).json({
       totalProducts,
-      inventoryValue,
+      investmentValue,
+      potentialValue,
       todaySales,
       monthlyRevenue,
       lowStockProducts,
