@@ -6,6 +6,7 @@ const { ObjectId } = require('mongodb');
 const { connectToDatabase } = require('../_utils/db');
 const { validateProduct } = require('../_utils/validate');
 const { withAuth } = require('../_utils/auth');
+const { logActivity } = require('../_utils/audit');
 
 async function productIdHandler(req, res) {
   let { id } = req.query;
@@ -84,6 +85,9 @@ async function productIdHandler(req, res) {
       if (result.matchedCount === 0) {
         return res.status(404).json({ error: 'Product not found' });
       }
+
+      await logActivity(req.user, 'PRODUCT_UPDATED', `Updated product: ${body.name} (SKU: ${body.sku})`);
+
       return res.status(200).json({ message: 'Product updated' });
     }
 
@@ -92,6 +96,9 @@ async function productIdHandler(req, res) {
       if (result.deletedCount === 0) {
         return res.status(404).json({ error: 'Product not found' });
       }
+
+      await logActivity(req.user, 'PRODUCT_DELETED', `Deleted product with ID: ${id}`);
+
       return res.status(200).json({ message: 'Product deleted' });
     }
 

@@ -5,6 +5,7 @@
 const { connectToDatabase } = require('../_utils/db');
 const { validateProduct } = require('../_utils/validate');
 const { withAuth } = require('../_utils/auth');
+const { logActivity } = require('../_utils/audit');
 
 async function productsHandler(req, res) {
   try {
@@ -74,6 +75,9 @@ async function productsHandler(req, res) {
       };
 
       const result = await collection.insertOne(product);
+      
+      await logActivity(req.user, 'PRODUCT_CREATED', `Added product: ${product.name} (SKU: ${product.sku}) with ${product.quantity} units`);
+
       return res.status(201).json({ ...product, _id: result.insertedId });
     }
 

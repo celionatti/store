@@ -4,6 +4,7 @@
  */
 const { connectToDatabase } = require('../_utils/db');
 const crypto = require('crypto');
+const { logActivity } = require('../_utils/audit');
 
 function hashPassword(password) {
   const salt = crypto.randomBytes(16).toString('hex');
@@ -75,6 +76,11 @@ module.exports = async function handler(req, res) {
       };
 
       const result = await collection.insertOne(user);
+      
+      // Log the registration. If req.user is available (created by another admin), use it.
+      // If not (first admin setup), log as system/self.
+      const actor = req.headers.authorization ? { username: user.username, id: result.insertedId } : { username: 'SYSTEM', id: 'system' };
+      await logActivity(actor, 'USER_REGISTERED', `New user registered: ${user.username} (${user.role})`);
       
       return res.status(201).json({
         message: 'User registered successfully',

@@ -6,6 +6,7 @@ const { ObjectId } = require('mongodb');
 const { connectToDatabase } = require('../_utils/db');
 const { validateSale } = require('../_utils/validate');
 const { withAuth } = require('../_utils/auth');
+const { logActivity } = require('../_utils/audit');
 
 async function salesHandler(req, res) {
   try {
@@ -56,6 +57,8 @@ async function salesHandler(req, res) {
       // Insert sale
       await db.collection('sales').insertOne(sale);
 
+      await logActivity(req.user, 'SALE_RECORDED', `Sold ${sale.quantity}x ${sale.productName}${sale.soldItemBarcode ? ` (IMEI: ${sale.soldItemBarcode})` : ''} for ${sale.totalAmount}`);
+
       const productUpdate = {
         $inc: { quantity: -sale.quantity },
         $set: { updatedAt: new Date() },
@@ -84,6 +87,8 @@ async function salesHandler(req, res) {
       const result = await db.collection('sales').deleteMany({
         createdAt: { $lt: beforeDate }
       });
+
+      await logActivity(req.user, 'SALES_BULK_DELETE', `Deleted sales older than ${before}`);
 
       return res.status(200).json({ 
         message: `Successfully deleted ${result.deletedCount} old sales entries.` 

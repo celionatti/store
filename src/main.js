@@ -19,6 +19,7 @@ import { renderLogin, logout } from './pages/login.js';
 import { renderRegister } from './pages/register.js';
 import { renderExpenses } from './pages/expenses.js';
 import { renderSettings } from './pages/settings.js';
+import { renderAuditLogs } from './pages/auditLogs.js';
 
 import { getTheme, setTheme, toggleTheme } from './utils/helpers.js';
 
@@ -72,6 +73,7 @@ const router = new Router([
   { path: '/workers',        title: 'Workers',      render: renderWorkers,   requiresAuth: true, allowedRoles: ['admin'] },
   { path: '/workers/new',    title: 'Register Worker', render: renderAddWorker, requiresAuth: true, allowedRoles: ['admin'] },
   { path: '/expenses',       title: 'Expenses',     render: renderExpenses,  requiresAuth: true, allowedRoles: ['admin'] },
+  { path: '/audit-logs',     title: 'Activity History', render: renderAuditLogs, requiresAuth: true, allowedRoles: ['admin'] },
   { path: '/settings',       title: 'Settings',     render: renderSettings,  requiresAuth: true, allowedRoles: ['admin'] },
   { path: '/login',          title: 'Sign In',      render: renderLogin },
   { path: '/register',       title: 'Register',     render: renderRegister },

@@ -5,6 +5,7 @@
 const { ObjectId } = require('mongodb');
 const { connectToDatabase } = require('../_utils/db');
 const { withAuth } = require('../_utils/auth');
+const { logActivity } = require('../_utils/audit');
 
 async function singleSaleHandler(req, res) {
   try {
@@ -48,6 +49,8 @@ async function singleSaleHandler(req, res) {
 
       // 4. Delete Sale Record
       await db.collection('sales').deleteOne({ _id: saleId });
+
+      await logActivity(req.user, 'SALE_REFUNDED', `Refunded/Cancelled sale of ${sale.quantity}x ${sale.productName}${sale.soldItemBarcode ? ` (IMEI: ${sale.soldItemBarcode})` : ''}`);
 
       return res.status(200).json({ message: 'Sale successfully refunded and cancelled.' });
     }

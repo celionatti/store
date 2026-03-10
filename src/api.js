@@ -81,6 +81,9 @@ export const api = {
   // Dashboard
   getDashboard: () => request('/dashboard'),
 
+  // Audit Logs
+  getAuditLogs: () => request('/audit'),
+
   // Expenses
   getExpenses: (from, to) => {
     const params = new URLSearchParams();

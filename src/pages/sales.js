@@ -6,6 +6,7 @@ import { formatCurrency, formatDateTime, escapeHtml } from '../utils/helpers.js'
 import { showToast } from '../components/toast.js';
 import { showModal } from '../components/modal.js';
 import { renderPagination } from '../components/pagination.js';
+import { printReceipt } from '../utils/receipt.js';
 import { getUser } from './login.js';
 
 export function renderSales(container, params = {}) {
@@ -197,8 +198,13 @@ export function renderSales(container, params = {}) {
     btn.textContent = 'Processing…';
 
     try {
-      await api.createSale(payload);
-      showToast('Sale recorded successfully!', 'success');
+      const res = await api.createSale(payload);
+      showModal(
+        'Sale Recorded',
+        `Sale successful! Would you like to print a receipt for this transaction?`,
+        () => printReceipt(res.sale || payload), // Fallback to payload if res.sale is missing ID/Date
+        { confirmText: 'Print Receipt', cancelText: 'Close' }
+      );
       form.reset();
       document.getElementById('sl-total').textContent = '—';
       document.getElementById('sl-profit').textContent = '—';
@@ -339,7 +345,10 @@ export function renderSales(container, params = {}) {
                   <td class="font-bold">${formatCurrency(s.totalAmount)}</td>
                   <td class="text-success font-bold hide-mobile">${formatCurrency(s.profit)}</td>
                   <td class="text-muted text-sm hide-mobile">${formatDateTime(s.createdAt)}</td>
-                  <td>
+                  <td style="white-space: nowrap;">
+                    <button class="btn-icon" data-print="${s._id}" title="Print Receipt">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><path d="M6 9V2h12v7"></path><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg>
+                    </button>
                     <button class="btn-icon danger" data-refund="${s._id}" title="Refund/Cancel Sale">
                       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><polyline points="1 4 1 10 7 10"></polyline><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path></svg>
                     </button>
@@ -365,6 +374,14 @@ export function renderSales(container, params = {}) {
           // separate fetch from render. Let's fix that.
         }
       );
+
+      wrapper.querySelectorAll('button[data-print]').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const saleId = btn.dataset.print;
+          const sale = sales.find(s => s._id === saleId);
+          if (sale) printReceipt(sale);
+        });
+      });
 
       wrapper.querySelectorAll('button[data-refund]').forEach(btn => {
         btn.addEventListener('click', () => {
