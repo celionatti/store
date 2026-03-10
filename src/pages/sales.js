@@ -7,7 +7,7 @@ import { showToast } from '../components/toast.js';
 import { showModal } from '../components/modal.js';
 import { getUser } from './login.js';
 
-export function renderSales(container) {
+export function renderSales(container, params = {}) {
   const currentUser = getUser();
   const isAdmin = currentUser?.role === 'admin';
 
@@ -247,6 +247,25 @@ export function renderSales(container) {
         opt.textContent = `${p.name} (Stock: ${p.quantity})`;
         select.appendChild(opt);
       });
+
+      // Handle pre-selection from params
+      if (params.productId) {
+        select.value = params.productId;
+        // Trigger change event to populate IMEI and update totals
+        const event = new Event('change');
+        select.dispatchEvent(event);
+
+        // If a barcode/IMEI was also passed, try to select it
+        if (params.barcode) {
+          const imeiSelect = document.getElementById('sl-imei');
+          if (imeiSelect && [...imeiSelect.options].some(o => o.value === params.barcode)) {
+            imeiSelect.value = params.barcode;
+            // Trigger change/input on these to ensure totals are fresh if needed
+            // (though for IMEI, qty is fixed to 1 and cost/price are from product)
+            updateTotals();
+          }
+        }
+      }
     } catch (err) {
       showToast('Failed to load products', 'error');
     }

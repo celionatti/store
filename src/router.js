@@ -12,15 +12,23 @@ export class Router {
   }
 
   resolve() {
-    const hash = location.hash.slice(1) || '/';
+    const [path, queryString] = (location.hash.slice(1) || '/').split('?');
     let matched = null;
     let params = {};
 
+    // Parse query params
+    if (queryString) {
+      queryString.split('&').forEach(pair => {
+        const [key, value] = pair.split('=');
+        if (key) params[decodeURIComponent(key)] = decodeURIComponent(value || '');
+      });
+    }
+
     for (const route of this.routes) {
-      const result = this._match(route.path, hash);
+      const result = this._match(route.path, path);
       if (result) {
         matched = route;
-        params = result;
+        params = { ...params, ...result };
         break;
       }
     }
@@ -41,7 +49,7 @@ export class Router {
     }
 
     // Direct authenticated users away from auth pages
-    if ((hash === '/login' || hash === '/register') && localStorage.getItem('store_auth')) {
+    if ((path === '/login' || path === '/register') && localStorage.getItem('store_auth')) {
       location.hash = '#/';
       return;
     }
@@ -57,7 +65,7 @@ export class Router {
     }
 
     // Toggle auth-page class on body to control layout visibility via CSS
-    if (hash === '/login' || hash === '/register') {
+    if (path === '/login' || path === '/register') {
       document.body.classList.add('is-auth-page');
     } else {
       document.body.classList.remove('is-auth-page');
@@ -73,7 +81,7 @@ export class Router {
 
     // Update sidebar active link
     document.querySelectorAll('.sidebar-nav a').forEach(a => {
-      a.classList.toggle('active', a.getAttribute('href') === `#${hash}`);
+      a.classList.toggle('active', a.getAttribute('href') === `#${path}`);
     });
 
     // Render the page
