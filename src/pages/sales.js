@@ -89,6 +89,7 @@ export function renderSales(container, params = {}) {
   let currentSalesPage = 1;
   const salesPerPage = 10;
   let shopName = 'Celio Store';
+  let shopSlogan = 'Professional Store Management';
 
   loadProductOptions();
   loadSalesHistory();
@@ -203,7 +204,7 @@ export function renderSales(container, params = {}) {
       showModal(
         'Sale Recorded',
         `Sale successful! Would you like to print a receipt for this transaction?`,
-        () => printReceipt(res.sale || payload, shopName), // Pass shopName
+        () => printReceipt(res.sale || payload, shopName, shopSlogan), // Pass slogan
         { confirmText: 'Print Receipt', cancelText: 'Close' }
       );
       form.reset();
@@ -250,6 +251,9 @@ export function renderSales(container, params = {}) {
       const products = data.products || data || [];
       if (settingsRes.settings && settingsRes.settings.shopName) {
         shopName = settingsRes.settings.shopName;
+      }
+      if (settingsRes.settings && settingsRes.settings.shopSlogan) {
+        shopSlogan = settingsRes.settings.shopSlogan;
       }
       productsMap = {};
       const select = document.getElementById('sl-product');
@@ -336,10 +340,10 @@ export function renderSales(container, params = {}) {
               <tr>
                 <th>Product</th>
                 <th>Qty</th>
-                <th>Unit Price</th>
+                <th class="hide-mobile">Unit Price</th>
                 <th>Total</th>
-                <th>Profit</th>
-                <th>Date</th>
+                <th class="hide-mobile">Profit</th>
+                <th class="hide-mobile">Date</th>
                 <th>Actions</th>
               </tr>
             </thead>
@@ -386,7 +390,7 @@ export function renderSales(container, params = {}) {
         btn.addEventListener('click', () => {
           const saleId = btn.dataset.print;
           const sale = sales.find(s => s._id === saleId);
-          if (sale) printReceipt(sale, shopName); // Pass shopName
+          if (sale) printReceipt(sale, shopName, shopSlogan); // Pass slogan
         });
       });
 

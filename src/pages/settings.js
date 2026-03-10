@@ -19,6 +19,10 @@ export function renderSettings(container) {
             <input type="text" id="st-name" class="form-input" placeholder="e.g. My Awesome Store" />
           </div>
           <div class="form-group">
+            <label class="form-label" for="st-slogan">Shop Slogan / Subtitle</label>
+            <input type="text" id="st-slogan" class="form-input" placeholder="e.g. Your one-stop shop for electronics" />
+          </div>
+          <div class="form-group">
             <label class="form-label" for="st-currency">Base Currency</label>
             <select id="st-currency" class="form-select">
               <option value="NGN">NGN (₦)</option>
@@ -53,6 +57,7 @@ export function renderSettings(container) {
     try {
       const payload = {
         shopName: document.getElementById('st-name').value,
+        shopSlogan: document.getElementById('st-slogan').value,
         currency: document.getElementById('st-currency').value,
       };
 
@@ -75,6 +80,7 @@ export function renderSettings(container) {
       const s = data.settings || {};
       
       document.getElementById('st-name').value = s.shopName || '';
+      document.getElementById('st-slogan').value = s.shopSlogan || '';
       document.getElementById('st-currency').value = s.currency || 'NGN';
       
     } catch (err) {

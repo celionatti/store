@@ -21,6 +21,7 @@ export function renderAuditLogs(container) {
       <p class="text-sm text-muted mb-md">Remove old activity records to save storage space. Warning: This cannot be undone.</p>
       <div class="form-row" style="align-items: center;">
         <select id="al-bulk-delete-select" class="form-select" style="max-width: 200px;">
+          <option value="0.25">Older than 1 Week</option>
           <option value="1">Older than 1 Month</option>
           <option value="3">Older than 3 Months</option>
           <option value="6">Older than 6 Months</option>
@@ -40,9 +41,15 @@ export function renderAuditLogs(container) {
 
   const bulkBtn = document.getElementById('al-bulk-delete-btn');
   bulkBtn?.addEventListener('click', () => {
-    const months = parseInt(document.getElementById('al-bulk-delete-select').value);
+    const months = parseFloat(document.getElementById('al-bulk-delete-select').value);
     const date = new Date();
-    date.setMonth(date.getMonth() - months);
+    
+    if (months === 0.25) {
+      date.setDate(date.getDate() - 7); // 1 week
+    } else {
+      date.setMonth(date.getMonth() - months);
+    }
+    
     const beforeStr = date.toISOString().split('T')[0];
 
     showModal(
