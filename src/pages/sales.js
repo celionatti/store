@@ -307,7 +307,7 @@ export function renderSales(container) {
             <tbody>
               ${sales.map(s => `
                 <tr>
-                  <td><strong>${escapeHtml(s.productName || '—')}</strong>${s.soldItemBarcode ? `<br><small class="text-muted">IMEI: ${escapeHtml(s.soldItemBarcode)}</small>` : ''}</td>
+                  <td><strong>${escapeHtml(s.productName || '—')}</strong>${s.soldItemBarcode ? `<br><small class="text-muted" style="word-break: break-all;">IMEI: ${escapeHtml(s.soldItemBarcode)}</small>` : ''}</td>
                   <td>${s.quantity}</td>
                   <td class="hide-mobile">${formatCurrency(s.unitPrice)}</td>
                   <td class="font-bold">${formatCurrency(s.totalAmount)}</td>

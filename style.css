@@ -1309,6 +1309,9 @@ td {
 .flex {
   display: flex;
 }
+.flex-wrap {
+  flex-wrap: wrap;
+}
 .flex-between {
   display: flex;
   justify-content: space-between;
