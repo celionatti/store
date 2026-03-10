@@ -83,6 +83,7 @@ export const api = {
 
   // Audit Logs
   getAuditLogs: () => request('/audit'),
+  bulkDeleteAuditLogs: (before) => request(`/audit?before=${encodeURIComponent(before)}`, { method: 'DELETE' }),
 
   // Expenses
   getExpenses: (from, to) => {

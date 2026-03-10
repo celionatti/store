@@ -4,6 +4,8 @@
 import { api } from '../api.js';
 import { formatDateTime, escapeHtml } from '../utils/helpers.js';
 import { renderPagination } from '../components/pagination.js';
+import { showModal } from '../components/modal.js';
+import { showToast } from '../components/toast.js';
 
 export function renderAuditLogs(container) {
   let logs = [];
@@ -14,6 +16,19 @@ export function renderAuditLogs(container) {
     <div class="page-header">
       <h2>Activity History</h2>
     </div>
+    <div class="card mb-lg" style="background: var(--color-danger-bg); border-color: rgba(239, 68, 68, 0.2);">
+      <h3 style="margin-bottom: var(--space-md); color: var(--color-danger);">Database Cleanup</h3>
+      <p class="text-sm text-muted mb-md">Remove old activity records to save storage space. Warning: This cannot be undone.</p>
+      <div class="form-row" style="align-items: center;">
+        <select id="al-bulk-delete-select" class="form-select" style="max-width: 200px;">
+          <option value="1">Older than 1 Month</option>
+          <option value="3">Older than 3 Months</option>
+          <option value="6">Older than 6 Months</option>
+        </select>
+        <button id="al-bulk-delete-btn" class="btn btn-danger">Clear History</button>
+      </div>
+    </div>
+
     <div class="card">
       <div id="audit-logs-content">
         <div class="loader">Loading history…</div>
@@ -22,6 +37,28 @@ export function renderAuditLogs(container) {
   `;
 
   loadLogs();
+
+  const bulkBtn = document.getElementById('al-bulk-delete-btn');
+  bulkBtn?.addEventListener('click', () => {
+    const months = parseInt(document.getElementById('al-bulk-delete-select').value);
+    const date = new Date();
+    date.setMonth(date.getMonth() - months);
+    const beforeStr = date.toISOString().split('T')[0];
+
+    showModal(
+      'Clear Activity History',
+      `Are you sure you want to permanently delete all logs recorded before <strong>${beforeStr}</strong>?`,
+      async () => {
+        try {
+          const res = await api.bulkDeleteAuditLogs(beforeStr);
+          showToast(res.message || 'Old logs cleared successfully', 'success');
+          loadLogs();
+        } catch (err) {
+          showToast(err.message || 'Failed to clear history', 'error');
+        }
+      }
+    );
+  });
 
   async function loadLogs() {
     try {

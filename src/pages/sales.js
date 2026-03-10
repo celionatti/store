@@ -88,6 +88,7 @@ export function renderSales(container, params = {}) {
   let productsMap = {};
   let currentSalesPage = 1;
   const salesPerPage = 10;
+  let shopName = 'Celio Store';
 
   loadProductOptions();
   loadSalesHistory();
@@ -202,7 +203,7 @@ export function renderSales(container, params = {}) {
       showModal(
         'Sale Recorded',
         `Sale successful! Would you like to print a receipt for this transaction?`,
-        () => printReceipt(res.sale || payload), // Fallback to payload if res.sale is missing ID/Date
+        () => printReceipt(res.sale || payload, shopName), // Pass shopName
         { confirmText: 'Print Receipt', cancelText: 'Close' }
       );
       form.reset();
@@ -242,8 +243,14 @@ export function renderSales(container, params = {}) {
 
   async function loadProductOptions() {
     try {
-      const data = await api.getProducts();
+      const [data, settingsRes] = await Promise.all([
+        api.getProducts(),
+        api.getSettings()
+      ]);
       const products = data.products || data || [];
+      if (settingsRes.settings && settingsRes.settings.shopName) {
+        shopName = settingsRes.settings.shopName;
+      }
       productsMap = {};
       const select = document.getElementById('sl-product');
       if (!select) return;
@@ -379,7 +386,7 @@ export function renderSales(container, params = {}) {
         btn.addEventListener('click', () => {
           const saleId = btn.dataset.print;
           const sale = sales.find(s => s._id === saleId);
-          if (sale) printReceipt(sale);
+          if (sale) printReceipt(sale, shopName); // Pass shopName
         });
       });
 
