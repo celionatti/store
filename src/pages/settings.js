@@ -23,6 +23,14 @@ export function renderSettings(container) {
             <input type="text" id="st-slogan" class="form-input" placeholder="e.g. Your one-stop shop for electronics" />
           </div>
           <div class="form-group">
+            <label class="form-label" for="st-address">Shop Address</label>
+            <input type="text" id="st-address" class="form-input" placeholder="e.g. 123 Main St, Lagos" />
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="st-phone">Phone Number</label>
+            <input type="text" id="st-phone" class="form-input" placeholder="e.g. +234 800 123 4567" />
+          </div>
+          <div class="form-group">
             <label class="form-label" for="st-currency">Base Currency</label>
             <select id="st-currency" class="form-select">
               <option value="NGN">NGN (₦)</option>
@@ -58,6 +66,8 @@ export function renderSettings(container) {
       const payload = {
         shopName: document.getElementById('st-name').value,
         shopSlogan: document.getElementById('st-slogan').value,
+        shopAddress: document.getElementById('st-address').value,
+        shopPhone: document.getElementById('st-phone').value,
         currency: document.getElementById('st-currency').value,
       };
 
@@ -81,6 +91,8 @@ export function renderSettings(container) {
       
       document.getElementById('st-name').value = s.shopName || '';
       document.getElementById('st-slogan').value = s.shopSlogan || '';
+      document.getElementById('st-address').value = s.shopAddress || '';
+      document.getElementById('st-phone').value = s.shopPhone || '';
       document.getElementById('st-currency').value = s.currency || 'NGN';
       
     } catch (err) {

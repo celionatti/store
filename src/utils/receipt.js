@@ -3,7 +3,7 @@
  */
 import { formatCurrency, formatDateTime } from './helpers.js';
 
-export function printReceipt(sale, businessName = 'Celio Store', businessSlogan = 'Professional Store Management') {
+export function printReceipt(sale, businessName = 'Celio Store', businessSlogan = 'Professional Store Management', businessAddress = '', businessPhone = '') {
   const printWindow = window.open('', '_blank', 'width=600,height=600');
   
   const html = `
@@ -32,6 +32,8 @@ export function printReceipt(sale, businessName = 'Celio Store', businessSlogan 
       <div class="header">
         <h1>${businessName}</h1>
         <p>${businessSlogan}</p>
+        ${businessAddress ? `<p class="contact-info">${businessAddress}</p>` : ''}
+        ${businessPhone ? `<p class="contact-info">Phone: ${businessPhone}</p>` : ''}
       </div>
       
       <div class="details">

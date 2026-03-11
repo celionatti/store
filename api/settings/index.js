@@ -15,12 +15,14 @@ async function settingsHandler(req, res) {
     }
 
     if (req.method === 'PUT') {
-      const { currency, shopName, shopSlogan } = req.body;
+      const { currency, shopName, shopSlogan, shopAddress, shopPhone } = req.body;
       
       const update = {
         currency: (currency || 'NGN').toUpperCase().trim(),
         shopName: (shopName || '').trim(),
         shopSlogan: (shopSlogan || '').trim(),
+        shopAddress: (shopAddress || '').trim(),
+        shopPhone: (shopPhone || '').trim(),
         updatedAt: new Date(),
       };
 

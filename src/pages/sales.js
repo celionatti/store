@@ -90,6 +90,8 @@ export function renderSales(container, params = {}) {
   const salesPerPage = 10;
   let shopName = 'Celio Store';
   let shopSlogan = 'Professional Store Management';
+  let shopAddress = '';
+  let shopPhone = '';
 
   loadProductOptions();
   loadSalesHistory();
@@ -204,7 +206,7 @@ export function renderSales(container, params = {}) {
       showModal(
         'Sale Recorded',
         `Sale successful! Would you like to print a receipt for this transaction?`,
-        () => printReceipt(res.sale || payload, shopName, shopSlogan), // Pass slogan
+        () => printReceipt(res.sale || payload, shopName, shopSlogan, shopAddress, shopPhone), // Pass contact info
         { confirmText: 'Print Receipt', cancelText: 'Close' }
       );
       form.reset();
@@ -254,6 +256,12 @@ export function renderSales(container, params = {}) {
       }
       if (settingsRes.settings && settingsRes.settings.shopSlogan) {
         shopSlogan = settingsRes.settings.shopSlogan;
+      }
+      if (settingsRes.settings && settingsRes.settings.shopAddress) {
+        shopAddress = settingsRes.settings.shopAddress;
+      }
+      if (settingsRes.settings && settingsRes.settings.shopPhone) {
+        shopPhone = settingsRes.settings.shopPhone;
       }
       productsMap = {};
       const select = document.getElementById('sl-product');
@@ -390,7 +398,7 @@ export function renderSales(container, params = {}) {
         btn.addEventListener('click', () => {
           const saleId = btn.dataset.print;
           const sale = sales.find(s => s._id === saleId);
-          if (sale) printReceipt(sale, shopName, shopSlogan); // Pass slogan
+          if (sale) printReceipt(sale, shopName, shopSlogan, shopAddress, shopPhone); // Pass contact info
         });
       });
 
