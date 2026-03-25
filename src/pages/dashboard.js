@@ -132,6 +132,8 @@ export function renderDashboard(container) {
         const gridColor = isDark ? 'rgba(255,255,255,.08)' : 'rgba(0,0,0,.08)';
         const symbol = getCurrencySymbol();
 
+        Chart.getChart(ctx)?.destroy();
+
         revenueChart = new Chart(ctx, {
           type: 'bar',
           data: {
@@ -213,6 +215,9 @@ export function renderDashboard(container) {
             '#6366f1', '#10b981', '#f59e0b', '#ef4444',
             '#3b82f6', '#8b5cf6', '#ec4899', '#14b8a6',
           ];
+
+          Chart.getChart(catCtx)?.destroy();
+
           categoryChart = new Chart(catCtx, {
             type: 'doughnut',
             data: {

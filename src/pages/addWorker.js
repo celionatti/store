@@ -34,6 +34,40 @@ export function renderAddWorker(container) {
           </div>
         </div>
 
+        <div class="form-row" style="flex-wrap: wrap;">
+          <div class="form-group" style="flex:1; min-width: 200px;">
+            <label class="form-label" for="reg-email">Email (Optional)</label>
+            <input type="email" id="reg-email" class="form-input" placeholder="john@example.com" />
+          </div>
+          <div class="form-group" style="flex:1; min-width: 200px;">
+            <label class="form-label" for="reg-phone">Phone Number (Optional)</label>
+            <input type="tel" id="reg-phone" class="form-input" placeholder="+1 234 567 8900" />
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="reg-image">Profile Image URL (Optional)</label>
+          <input type="url" id="reg-image" class="form-input" placeholder="https://example.com/photo.jpg" />
+        </div>
+
+        <h3 style="margin-top: 1.5rem; margin-bottom: 1rem; font-size: 1.1rem; color: var(--text-color);">Emergency / Parent Details</h3>
+
+        <div class="form-row" style="flex-wrap: wrap;">
+          <div class="form-group" style="flex:1; min-width: 200px;">
+            <label class="form-label" for="reg-parent-name">Contact Name (Optional)</label>
+            <input type="text" id="reg-parent-name" class="form-input" placeholder="Jane Doe" />
+          </div>
+          <div class="form-group" style="flex:1; min-width: 200px;">
+            <label class="form-label" for="reg-parent-phone">Contact Phone (Optional)</label>
+            <input type="tel" id="reg-parent-phone" class="form-input" placeholder="+1 987 654 3210" />
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="reg-address">Address (Optional)</label>
+          <textarea id="reg-address" class="form-input" rows="2" placeholder="123 Main St, City, Country"></textarea>
+        </div>
+
         <div class="form-group">
           <label class="form-label" for="reg-role">Account Type <span class="text-danger">*</span></label>
           <select id="reg-role" class="form-select">
@@ -71,6 +105,12 @@ export function renderAddWorker(container) {
     const name = document.getElementById('reg-name').value;
     const username = document.getElementById('reg-username').value;
     const password = document.getElementById('reg-password').value;
+    const email = document.getElementById('reg-email').value;
+    const phone = document.getElementById('reg-phone').value;
+    const image = document.getElementById('reg-image').value;
+    const parentName = document.getElementById('reg-parent-name').value;
+    const parentPhone = document.getElementById('reg-parent-phone').value;
+    const address = document.getElementById('reg-address').value;
     const role = document.getElementById('reg-role').value;
 
     const originalText = regBtn.textContent;
@@ -78,7 +118,10 @@ export function renderAddWorker(container) {
     regBtn.disabled = true;
 
     try {
-      await api.register({ name, username, password, role });
+      await api.register({
+        name, username, password, role,
+        email, phone, image, parentName, parentPhone, address
+      });
       
       showToast('Worker registered successfully!', 'success');
       window.location.hash = '#/workers';

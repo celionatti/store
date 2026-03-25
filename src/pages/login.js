@@ -73,7 +73,6 @@ export function renderLogin(container) {
       renderSidebar();
       renderBottomNav();
       window.location.hash = '#/';
-      window.dispatchEvent(new HashChangeEvent('hashchange'));
     } catch (error) {
       showToast(error.message || 'Invalid username or password', 'error');
       loginBtn.textContent = originalText;
@@ -107,5 +106,4 @@ export async function logout() {
   renderSidebar();
   renderBottomNav();
   window.location.hash = '#/login';
-  window.dispatchEvent(new HashChangeEvent('hashchange'));
 }

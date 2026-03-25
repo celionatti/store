@@ -25,7 +25,7 @@ module.exports = async function handler(req, res) {
     if (req.method.toUpperCase() === 'POST') {
       // Robust body parsing check
       const body = req.body || {};
-      const { name, username, password, role } = body;
+      const { name, username, password, role, email, phone, image, parentName, parentPhone, address } = body;
 
       if (!name || !username || !password) {
         return res.status(400).json({ 
@@ -82,6 +82,12 @@ module.exports = async function handler(req, res) {
       const user = {
         name: name.trim(),
         username: username.toLowerCase().trim(),
+        email: email ? email.trim() : '',
+        phone: phone ? phone.trim() : '',
+        image: image ? image.trim() : '',
+        parentName: parentName ? parentName.trim() : '',
+        parentPhone: parentPhone ? parentPhone.trim() : '',
+        address: address ? address.trim() : '',
         salt,
         hash,
         role: assignedRole,
