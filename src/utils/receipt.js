@@ -19,13 +19,13 @@ export function printReceipt(saleOrItems, settings = {}) {
 
   const itemsHtml = items.map(item => `
     <tr>
-      <td>
+      <td style="padding-right: 8px; word-break: break-word;">
         ${item.productName || '—'}
         ${item.soldItemBarcode ? `<br><small style="font-size: 10px;">IMEI: ${item.soldItemBarcode}</small>` : ''}
       </td>
-      <td>${item.quantity}</td>
-      <td style="text-align: right;">${formatCurrency(item.unitPrice)}</td>
-      <td style="text-align: right;">${formatCurrency(item.totalAmount || (item.unitPrice * item.quantity))}</td>
+      <td style="text-align: center; padding: 0 4px;">${item.quantity}</td>
+      <td style="text-align: right; padding-left: 4px;">${formatCurrency(item.unitPrice)}</td>
+      <td style="text-align: right; padding-left: 4px;">${formatCurrency(item.totalAmount || (item.unitPrice * item.quantity))}</td>
     </tr>
   `).join('');
 
@@ -35,21 +35,25 @@ export function printReceipt(saleOrItems, settings = {}) {
     <head>
       <title>Receipt - ${receiptId}</title>
       <style>
-        body { font-family: 'Courier New', Courier, monospace; padding: 20px; color: #000; line-height: 1.4; max-width: 400px; margin: 0 auto; }
-        .header { text-align: center; margin-bottom: 25px; border-bottom: 2px solid #000; padding-bottom: 15px; }
-        .header h1 { margin: 0; font-size: 24px; text-transform: uppercase; }
-        .header p { margin: 4px 0; font-size: 13px; }
+        body { font-family: 'Courier New', Courier, monospace; padding: 10px; color: #000; line-height: 1.4; max-width: 300px; margin: 0 auto; text-align: left; }
+        .header { text-align: center; margin-bottom: 15px; border-bottom: 2px dashed #000; padding-bottom: 10px; }
+        .header h1 { margin: 0; font-size: 20px; text-transform: uppercase; }
+        .header p { margin: 4px 0; font-size: 12px; }
         .contact-info { font-style: italic; }
-        .details { margin-bottom: 15px; font-size: 13px; }
+        .details { margin-bottom: 15px; font-size: 12px; }
         .details div { margin-bottom: 3px; }
         .items { width: 100%; border-collapse: collapse; margin-bottom: 15px; }
-        .items th { text-align: left; border-bottom: 2px solid #000; padding: 6px 0; font-size: 13px; }
-        .items td { padding: 6px 0; font-size: 13px; vertical-align: top; border-bottom: 1px dotted #ccc; }
-        .total-section { border-top: 2px solid #000; padding-top: 12px; }
-        .subtotal-row { display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 4px; }
-        .total-row { display: flex; justify-content: space-between; font-weight: bold; font-size: 18px; margin-top: 8px; }
-        .footer { text-align: center; margin-top: 30px; font-size: 11px; border-top: 1px dashed #ccc; padding-top: 15px; }
-        @media print { body { padding: 0; } .no-print { display: none; } }
+        .items th { border-bottom: 2px solid #000; padding: 6px 0; font-size: 12px; }
+        .items td { padding: 6px 0; font-size: 12px; vertical-align: top; border-bottom: 1px dashed #ccc; }
+        .total-section { border-top: 2px dashed #000; padding-top: 10px; }
+        .subtotal-row { display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 4px; }
+        .total-row { display: flex; justify-content: space-between; font-weight: bold; font-size: 16px; margin-top: 8px; }
+        .footer { text-align: center; margin-top: 25px; font-size: 11px; border-top: 1px dashed #ccc; padding-top: 12px; }
+        @media print { 
+          @page { margin: 0; }
+          body { padding: 0; width: 100%; max-width: 100%; margin: 0; }
+          .no-print { display: none; } 
+        }
       </style>
     </head>
     <body>
@@ -63,6 +67,7 @@ export function printReceipt(saleOrItems, settings = {}) {
       <div class="details">
         <div><strong>Receipt:</strong> ${receiptId}</div>
         <div><strong>Date:</strong> ${formatDateTime(receiptDate)}</div>
+        ${items[0]?.workerName ? `<div><strong>Cashier:</strong> ${items[0].workerName}</div>` : ''}
         ${items[0]?.customerName ? `<div><strong>Customer:</strong> ${items[0].customerName}</div>` : ''}
         <div><strong>Items:</strong> ${items.length}</div>
       </div>
@@ -70,10 +75,10 @@ export function printReceipt(saleOrItems, settings = {}) {
       <table class="items">
         <thead>
           <tr>
-            <th>Product</th>
-            <th>Qty</th>
-            <th style="text-align: right;">Price</th>
-            <th style="text-align: right;">Total</th>
+            <th style="text-align: left; padding-right: 8px; width: 40%;">Product</th>
+            <th style="text-align: center; padding: 0 4px;">Qty</th>
+            <th style="text-align: right; padding-left: 4px;">Price</th>
+            <th style="text-align: right; padding-left: 4px;">Total</th>
           </tr>
         </thead>
         <tbody>

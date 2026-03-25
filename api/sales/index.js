@@ -89,6 +89,7 @@ async function salesHandler(req, res) {
           profit: parseFloat(item.profit) || ((parseFloat(item.unitPrice) - parseFloat(item.costPrice)) * parseInt(item.quantity)),
           customerId: customerId ? new ObjectId(customerId) : null,
           customerName: customerName || null,
+          workerName: req.user?.name || 'Admin',
           createdAt: now,
         };
 
