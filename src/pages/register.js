@@ -3,7 +3,7 @@ import { showToast } from '../components/toast.js';
 
 export function renderRegister(container) {
   container.innerHTML = `
-    <div style="max-width: 450px; margin: 60px auto; padding: var(--space-xl);" class="card">
+    <div style="max-width: 450px; width: 100%; padding: var(--space-xl);" class="card">
       <div style="text-align: center; margin-bottom: var(--space-lg);">
         <h2 style="margin-bottom: var(--space-xs);">Create an Account</h2>
         <p class="text-muted">Register to start managing your store</p>

@@ -8,7 +8,7 @@ import { renderBottomNav } from '../components/bottomNav.js';
 
 export function renderLogin(container) {
   container.innerHTML = `
-    <div style="max-width: 400px; margin: 100px auto; padding: var(--space-xl);" class="card">
+    <div style="max-width: 400px; width: 100%; padding: var(--space-xl);" class="card">
       <div style="text-align: center; margin-bottom: var(--space-xl);">
         <h2 style="margin-bottom: var(--space-xs);">Welcome Back</h2>
         <p class="text-muted">Sign in to manage your store</p>
