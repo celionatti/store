@@ -24,12 +24,13 @@ async function connectToDatabase() {
 
   try {
     const maskedUri = uri.replace(/\/\/.*:.*@/, '//****:****@');
-    console.log(`[DB] Connecting to MongoDB (URI: ${maskedUri})...`);
+    const dbName = process.env.MONGODB_DB_NAME || 'store-inventory';
+    console.log(`[DB] Connecting to MongoDB (URI: ${maskedUri}) for DB: ${dbName}...`);
     await client.connect();
-    const db = client.db('store-inventory');
+    const db = client.db(dbName);
     cachedClient = client;
     cachedDb = db;
-    console.log(`[DB] Successfully connected to database: store-inventory`);
+    console.log(`[DB] Successfully connected to database: ${dbName}`);
     return { client: cachedClient, db: cachedDb };
   } catch (err) {
     console.error(`[DB Error] Failed to connect to MongoDB: ${err.message}`);
