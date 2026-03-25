@@ -29,11 +29,11 @@ export function formatCurrency(amount) {
     return new Intl.NumberFormat(locale, {
       style: 'currency',
       currency: currency,
-      minimumFractionDigits: 0,
+      minimumFractionDigits: 2,
       maximumFractionDigits: 2,
     }).format(amount || 0);
   } catch (e) {
-    return `${getCurrencySymbol()}${Number(amount || 0).toLocaleString()}`;
+    return `${getCurrencySymbol()}${Number(amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   }
 }
 
