@@ -69,6 +69,20 @@ export function renderLogin(container) {
       localStorage.setItem('store_user', JSON.stringify(response.user));
       
       showToast('Welcome back, ' + response.user.name + '!', 'success');
+
+      // Sync settings immediately after login so brand name and currency update
+      try {
+        const settingsData = await api.getSettings();
+        if (settingsData?.settings) {
+          const { currency, shopName } = settingsData.settings;
+          const helpers = await import('../utils/helpers.js');
+          if (currency) helpers.setCurrentCurrency(currency);
+          if (shopName) helpers.updateBrandName(shopName);
+        }
+      } catch (err) {
+        console.warn('Failed to sync settings on login:', err);
+      }
+
       // Re-render navigation for role-based visibility
       renderSidebar();
       renderBottomNav();
