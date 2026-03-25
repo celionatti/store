@@ -3,6 +3,8 @@
  */
 import { api } from '../api.js';
 import { showToast } from '../components/toast.js';
+import { renderSidebar } from '../components/sidebar.js';
+import { renderBottomNav } from '../components/bottomNav.js';
 
 export function renderLogin(container) {
   container.innerHTML = `
@@ -67,8 +69,11 @@ export function renderLogin(container) {
       localStorage.setItem('store_user', JSON.stringify(response.user));
       
       showToast('Welcome back, ' + response.user.name + '!', 'success');
+      // Re-render navigation for role-based visibility
+      renderSidebar();
+      renderBottomNav();
       window.location.hash = '#/';
-      window.location.reload(); // Reload to refresh protected routes
+      window.dispatchEvent(new HashChangeEvent('hashchange'));
     } catch (error) {
       showToast(error.message || 'Invalid username or password', 'error');
       loginBtn.textContent = originalText;
@@ -98,6 +103,9 @@ export async function logout() {
   }
   localStorage.removeItem('store_auth');
   localStorage.removeItem('store_user');
+  // Re-render navigation to hide protected links
+  renderSidebar();
+  renderBottomNav();
   window.location.hash = '#/login';
-  window.location.reload();
+  window.dispatchEvent(new HashChangeEvent('hashchange'));
 }

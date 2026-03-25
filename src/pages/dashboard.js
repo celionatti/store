@@ -57,12 +57,37 @@ export function renderDashboard(container) {
 
   let revenueChart = null;
   let categoryChart = null;
+  let currentPeriod = 'monthly'; // Track the user's selected period
+
+  // Set up tab handlers ONCE (before polling starts)
+  const revTabs = document.getElementById('revenue-tabs');
+  if (revTabs) {
+    revTabs.querySelectorAll('.tab-btn').forEach(btn => {
+      btn.addEventListener('click', async (e) => {
+        const period = e.currentTarget.getAttribute('data-period');
+        currentPeriod = period;
+        revTabs.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+        e.currentTarget.classList.add('active');
+        // Fetch and update chart for the selected period
+        try {
+          const newData = await api.getDashboard(period);
+          if (revenueChart) {
+            revenueChart.data.labels = newData.revenueByMonth.map(m => m.label);
+            revenueChart.data.datasets[0].data = newData.revenueByMonth.map(m => m.total);
+            revenueChart.update();
+          }
+        } catch (err) {
+          showToast('Failed to update chart', 'error');
+        }
+      });
+    });
+  }
 
   const stopPolling = startPolling(loadDashboard, 15000);
 
   async function loadDashboard() {
     try {
-      const data = await api.getDashboard();
+      const data = await api.getDashboard(currentPeriod);
       const symbol = getCurrencySymbol();
 
       // Stats cards
@@ -85,19 +110,7 @@ export function renderDashboard(container) {
         `;
       }
 
-      // Revenue chart tabs
-      const revTabs = document.getElementById('revenue-tabs');
-      if (revTabs) {
-        revTabs.querySelectorAll('.tab-btn').forEach(btn => {
-          btn.onclick = (e) => {
-            const period = e.currentTarget.getAttribute('data-period');
-            revTabs.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-            e.currentTarget.classList.add('active');
-            updateRevenueChart(period);
-          };
-        });
-      }
-
+      // Revenue chart — update with data for the current period
       const revCtx = document.getElementById('revenue-chart')?.getContext('2d');
       if (revCtx) {
         if (revenueChart) {
@@ -106,19 +119,6 @@ export function renderDashboard(container) {
           revenueChart.update('none'); // Update without animation for smoother polling
         } else {
           initRevenueChart(revCtx, data.revenueByMonth);
-        }
-      }
-
-      async function updateRevenueChart(period) {
-        try {
-          const newData = await api.getDashboard(period);
-          if (revenueChart) {
-            revenueChart.data.labels = newData.revenueByMonth.map(m => m.label);
-            revenueChart.data.datasets[0].data = newData.revenueByMonth.map(m => m.total);
-            revenueChart.update();
-          }
-        } catch (err) {
-          showToast('Failed to update chart', 'error');
         }
       }
 
@@ -189,11 +189,25 @@ export function renderDashboard(container) {
       // Category chart
       const catCtx = document.getElementById('category-chart');
       if (catCtx) {
-        const categories = data.categoryBreakdown || [];
+        // Sort categories consistently so the chart doesn't shift on each poll
+        const categories = (data.categoryBreakdown || []).slice().sort((a, b) =>
+          (a.category || '').localeCompare(b.category || '')
+        );
+        const newLabels = categories.map(c => c.category || 'Uncategorized');
+        const newCounts = categories.map(c => c.count);
+
         if (categoryChart) {
-          categoryChart.data.labels = categories.map(c => c.category || 'Uncategorized');
-          categoryChart.data.datasets[0].data = categories.map(c => c.count);
-          categoryChart.update('none');
+          // Only update if data actually changed
+          const oldLabels = categoryChart.data.labels;
+          const oldData = categoryChart.data.datasets[0].data;
+          const changed = newLabels.length !== oldLabels.length ||
+            newLabels.some((l, i) => l !== oldLabels[i]) ||
+            newCounts.some((c, i) => c !== oldData[i]);
+          if (changed) {
+            categoryChart.data.labels = newLabels;
+            categoryChart.data.datasets[0].data = newCounts;
+            categoryChart.update('none');
+          }
         } else {
           const colors = [
             '#6366f1', '#10b981', '#f59e0b', '#ef4444',

@@ -146,7 +146,7 @@ export function renderBulkImport(container) {
   });
 
   document.getElementById('cancel-import')?.addEventListener('click', () => {
-    location.reload();
+    renderBulkImport(container);
   });
 
   function showResults(result) {
