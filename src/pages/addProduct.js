@@ -59,7 +59,15 @@ export function renderAddProduct(container, params = {}) {
           </div>
           <div class="form-group">
             <label class="form-label" for="pf-category">Category</label>
-            <input type="text" id="pf-category" class="form-input" placeholder="e.g. Electronics" />
+            <select id="pf-category" class="form-select">
+              <option value="">No Category</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="pf-supplier">Supplier</label>
+            <select id="pf-supplier" class="form-select">
+              <option value="">No Supplier</option>
+            </select>
           </div>
           <div class="form-group">
             <label class="form-label" for="pf-cost">Cost Price *</label>
@@ -204,8 +212,44 @@ export function renderAddProduct(container, params = {}) {
   }
 
   // Load existing product for edit
-  if (isEdit) {
-    loadProduct(params.id);
+  loadInitialData();
+
+  async function loadInitialData() {
+    // Load suppliers and categories for dropdowns
+    try {
+      const [supData, catData] = await Promise.all([
+        api.getSuppliers(),
+        api.getCategories(),
+      ]);
+
+      const suppliers = supData.suppliers || supData || [];
+      const supSelect = document.getElementById("pf-supplier");
+      if (supSelect) {
+        suppliers.forEach(s => {
+          const opt = document.createElement("option");
+          opt.value = s._id;
+          opt.textContent = s.name;
+          supSelect.appendChild(opt);
+        });
+      }
+
+      const categories = catData.categories || catData || [];
+      const catSelect = document.getElementById("pf-category");
+      if (catSelect) {
+        categories.forEach(c => {
+          const opt = document.createElement("option");
+          opt.value = c.name;
+          opt.textContent = c.name;
+          catSelect.appendChild(opt);
+        });
+      }
+    } catch (err) {
+      console.error("Failed to load form data:", err);
+    }
+
+    if (isEdit) {
+      loadProduct(params.id);
+    }
   }
 
   async function loadProduct(id) {
@@ -219,6 +263,8 @@ export function renderAddProduct(container, params = {}) {
       document.getElementById("pf-price").value = product.sellingPrice || "";
       document.getElementById("pf-quantity").value = product.quantity ?? 0;
       document.getElementById("pf-reorder").value = product.reorderLevel ?? 10;
+      const supSelect = document.getElementById("pf-supplier");
+      if (supSelect) supSelect.value = product.supplierId || "";
       if (product.itemBarcodes) {
         itemBarcodes = [...product.itemBarcodes];
         renderImeis();
@@ -241,6 +287,7 @@ export function renderAddProduct(container, params = {}) {
       sellingPrice: parseFloat(document.getElementById("pf-price").value) || 0,
       quantity: parseInt(document.getElementById("pf-quantity").value) || 0,
       reorderLevel: parseInt(document.getElementById("pf-reorder").value) || 10,
+      supplierId: document.getElementById("pf-supplier")?.value || null,
     };
 
     if (

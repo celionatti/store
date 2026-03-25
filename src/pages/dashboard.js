@@ -3,9 +3,10 @@
  */
 import { api } from '../api.js';
 import { createStatsCard } from '../components/statsCard.js';
-import { formatCurrency } from '../utils/helpers.js';
+import { formatCurrency, getCurrencySymbol } from '../utils/helpers.js';
 import { showToast } from '../components/toast.js';
 import Chart from 'chart.js/auto';
+import { startPolling } from '../utils/polling.js';
 
 export function renderDashboard(container) {
   container.innerHTML = `
@@ -26,20 +27,30 @@ export function renderDashboard(container) {
     </div>
     <div class="charts-grid">
       <div class="chart-card">
-        <h3>Monthly Revenue</h3>
+        <div class="flex flex-between flex-align-center mb-md">
+          <h3 style="margin: 0;">Revenue Trend</h3>
+          <div class="tab-switcher" id="revenue-tabs">
+            <button class="tab-btn active" data-period="monthly">Monthly</button>
+            <button class="tab-btn" data-period="weekly">Weekly</button>
+            <button class="tab-btn" data-period="daily">Daily</button>
+          </div>
+        </div>
         <div class="chart-container">
           <canvas id="revenue-chart"></canvas>
         </div>
       </div>
       <div class="chart-card">
-        <h3>Sales by Category</h3>
+        <h3>Inventory Distribution</h3>
         <div class="chart-container">
           <canvas id="category-chart"></canvas>
         </div>
       </div>
     </div>
     <div class="card mt-lg">
-      <h3 style="margin-bottom: var(--space-md);">Low Stock Alerts</h3>
+      <div class="flex flex-between flex-align-center mb-md">
+        <h3 style="margin: 0;">Low Stock Alerts</h3>
+        <a href="#/stock-alerts" class="btn btn-outline btn-sm">View All</a>
+      </div>
       <div id="low-stock-table"></div>
     </div>
   `;
@@ -47,11 +58,12 @@ export function renderDashboard(container) {
   let revenueChart = null;
   let categoryChart = null;
 
-  loadDashboard();
+  const stopPolling = startPolling(loadDashboard, 15000);
 
   async function loadDashboard() {
     try {
       const data = await api.getDashboard();
+      const symbol = getCurrencySymbol();
 
       // Stats cards
       const statsGrid = document.getElementById('stats-grid');
@@ -73,34 +85,102 @@ export function renderDashboard(container) {
         `;
       }
 
-      // Revenue chart
-      const revCtx = document.getElementById('revenue-chart');
+      // Revenue chart tabs
+      const revTabs = document.getElementById('revenue-tabs');
+      if (revTabs) {
+        revTabs.querySelectorAll('.tab-btn').forEach(btn => {
+          btn.onclick = (e) => {
+            const period = e.currentTarget.getAttribute('data-period');
+            revTabs.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            e.currentTarget.classList.add('active');
+            updateRevenueChart(period);
+          };
+        });
+      }
+
+      const revCtx = document.getElementById('revenue-chart')?.getContext('2d');
       if (revCtx) {
-        const months = data.revenueByMonth || [];
-        revenueChart = new Chart(revCtx, {
+        if (revenueChart) {
+          revenueChart.data.labels = data.revenueByMonth.map(m => m.label);
+          revenueChart.data.datasets[0].data = data.revenueByMonth.map(m => m.total);
+          revenueChart.update('none'); // Update without animation for smoother polling
+        } else {
+          initRevenueChart(revCtx, data.revenueByMonth);
+        }
+      }
+
+      async function updateRevenueChart(period) {
+        try {
+          const newData = await api.getDashboard(period);
+          if (revenueChart) {
+            revenueChart.data.labels = newData.revenueByMonth.map(m => m.label);
+            revenueChart.data.datasets[0].data = newData.revenueByMonth.map(m => m.total);
+            revenueChart.update();
+          }
+        } catch (err) {
+          showToast('Failed to update chart', 'error');
+        }
+      }
+
+      function initRevenueChart(ctx, dataPoints) {
+        const gradient = ctx.createLinearGradient(0, 0, 0, 300);
+        gradient.addColorStop(0, 'rgba(99, 102, 241, 0.4)');
+        gradient.addColorStop(1, 'rgba(99, 102, 241, 0)');
+
+        const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+        const textColor = isDark ? '#94a3b8' : '#64748b';
+        const gridColor = isDark ? 'rgba(255,255,255,.08)' : 'rgba(0,0,0,.08)';
+        const symbol = getCurrencySymbol();
+
+        revenueChart = new Chart(ctx, {
           type: 'bar',
           data: {
-            labels: months.map(m => m.label),
+            labels: dataPoints.map(m => m.label),
             datasets: [{
               label: 'Revenue',
-              data: months.map(m => m.total),
-              backgroundColor: 'rgba(99, 102, 241, 0.7)',
-              borderColor: 'rgba(99, 102, 241, 1)',
-              borderWidth: 1,
+              data: dataPoints.map(m => m.total),
+              backgroundColor: '#6366f1',
               borderRadius: 6,
+              hoverBackgroundColor: '#4f46e5',
             }],
           },
           options: {
             responsive: true,
             maintainAspectRatio: false,
-            plugins: { legend: { display: false } },
+            plugins: { 
+              legend: { display: false },
+              tooltip: {
+                backgroundColor: isDark ? '#1e293b' : '#fff',
+                titleColor: isDark ? '#f8fafc' : '#0f172a',
+                bodyColor: isDark ? '#94a3b8' : '#64748b',
+                borderColor: gridColor,
+                borderWidth: 1,
+                padding: 12,
+                displayColors: false,
+                callbacks: {
+                  label: (context) => {
+                    const val = context.parsed.y ?? 0;
+                    return `Revenue: ${symbol}${val.toLocaleString()}`;
+                  }
+                }
+              }
+            },
             scales: {
               y: {
                 beginAtZero: true,
-                ticks: { callback: v => '$' + v.toLocaleString() },
-                grid: { color: 'rgba(0,0,0,.05)' },
+                ticks: { 
+                  color: textColor,
+                  callback: v => symbol + (v >= 1000 ? (v / 1000) + 'k' : v)
+                },
+                grid: { 
+                  color: gridColor,
+                  drawBorder: false
+                },
               },
-              x: { grid: { display: false } },
+              x: { 
+                ticks: { color: textColor },
+                grid: { display: false } 
+              },
             },
           },
         });
@@ -110,32 +190,45 @@ export function renderDashboard(container) {
       const catCtx = document.getElementById('category-chart');
       if (catCtx) {
         const categories = data.categoryBreakdown || [];
-        const colors = [
-          '#6366f1', '#10b981', '#f59e0b', '#ef4444',
-          '#3b82f6', '#8b5cf6', '#ec4899', '#14b8a6',
-        ];
-        categoryChart = new Chart(catCtx, {
-          type: 'doughnut',
-          data: {
-            labels: categories.map(c => c.category || 'Uncategorized'),
-            datasets: [{
-              data: categories.map(c => c.count),
-              backgroundColor: colors.slice(0, categories.length),
-              borderWidth: 0,
-            }],
-          },
-          options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            cutout: '65%',
-            plugins: {
-              legend: {
-                position: 'bottom',
-                labels: { padding: 16, usePointStyle: true, pointStyleWidth: 10 },
+        if (categoryChart) {
+          categoryChart.data.labels = categories.map(c => c.category || 'Uncategorized');
+          categoryChart.data.datasets[0].data = categories.map(c => c.count);
+          categoryChart.update('none');
+        } else {
+          const colors = [
+            '#6366f1', '#10b981', '#f59e0b', '#ef4444',
+            '#3b82f6', '#8b5cf6', '#ec4899', '#14b8a6',
+          ];
+          categoryChart = new Chart(catCtx, {
+            type: 'doughnut',
+            data: {
+              labels: categories.map(c => c.category || 'Uncategorized'),
+              datasets: [{
+                data: categories.map(c => c.count),
+                backgroundColor: colors,
+                borderWidth: 2,
+                borderColor: 'transparent',
+                hoverOffset: 10
+              }],
+            },
+            options: {
+              responsive: true,
+              maintainAspectRatio: false,
+              cutout: '70%',
+              plugins: {
+                legend: {
+                  position: 'bottom',
+                  labels: { 
+                    padding: 20, 
+                    usePointStyle: true, 
+                    pointStyle: 'circle',
+                    font: { size: 12 }
+                  },
+                },
               },
             },
-          },
-        });
+          });
+        }
       }
 
       // Low stock table
@@ -183,6 +276,7 @@ export function renderDashboard(container) {
 
   // Cleanup
   return () => {
+    stopPolling();
     if (revenueChart) revenueChart.destroy();
     if (categoryChart) categoryChart.destroy();
   };

@@ -2,7 +2,9 @@
  * Auth API — Login User
  * Route: /api/auth/login
  */
+const { applyCorsHeaders } = require('../_utils/cors');
 const { connectToDatabase } = require('../_utils/db');
+const { checkRateLimit, recordFailedAttempt, resetFailedAttempts } = require('../_utils/rateLimit');
 const crypto = require('crypto');
 
 function verifyPassword(password, salt, hash) {
@@ -17,9 +19,7 @@ function generateSimpleToken() {
 
 module.exports = async function handler(req, res) {
   // CORS headers
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  applyCorsHeaders(req, res);
   if (req.method === 'OPTIONS') return res.status(204).end();
 
   try {
@@ -27,28 +27,56 @@ module.exports = async function handler(req, res) {
     const collection = db.collection('users');
 
     if (req.method.toUpperCase() === 'POST') {
-      const { username, password } = req.body;
+      const body = req.body || {};
+      const { username, password } = body;
+
+      const ipAddress = req.headers['x-forwarded-for'] || req.connection?.remoteAddress || 'unknown';
+
+      // 1. Check Rate Limit
+      const { isBlocked, remainingTimeMs } = await checkRateLimit(ipAddress);
+      if (isBlocked) {
+        const remainingMinutes = Math.ceil(remainingTimeMs / (60 * 1000));
+        return res.status(429).json({ 
+          error: `Too many failed login attempts. Please try again in ${remainingMinutes} minute(s).` 
+        });
+      }
 
       if (!username || !password) {
-        return res.status(400).json({ error: 'Username and password are required' });
+        return res.status(400).json({ 
+          error: 'Validation error', 
+          message: 'Username and password are required' 
+        });
       }
 
       const user = await collection.findOne({ username: username.toLowerCase().trim() });
       if (!user) {
+        await recordFailedAttempt(ipAddress);
         return res.status(401).json({ error: 'Invalid username or password' });
       }
 
       const isValid = verifyPassword(password, user.salt, user.hash);
       if (!isValid) {
+        await recordFailedAttempt(ipAddress);
         return res.status(401).json({ error: 'Invalid username or password' });
       }
 
+      // Successful login - clear limits
+      await resetFailedAttempts(ipAddress);
+
       const token = generateSimpleToken();
 
-      // Persist the token in the user's document
+      // Persist the token in the user's document as an array to support multi-device
       await collection.updateOne(
         { _id: user._id },
-        { $set: { activeToken: token, updatedAt: new Date() } }
+        { 
+          $push: { 
+            activeTokens: { 
+              $each: [token],
+              $slice: -5 // Keep up to 5 concurrent sessions
+            } 
+          },
+          $set: { updatedAt: new Date() } 
+        }
       );
 
       return res.status(200).json({

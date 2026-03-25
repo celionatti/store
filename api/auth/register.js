@@ -3,6 +3,7 @@
  * Route: /api/auth/register
  */
 const { connectToDatabase } = require('../_utils/db');
+const { applyCorsHeaders } = require('../_utils/cors');
 const crypto = require('crypto');
 const { logActivity } = require('../_utils/audit');
 
@@ -14,9 +15,7 @@ function hashPassword(password) {
 
 module.exports = async function handler(req, res) {
   // CORS headers
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  applyCorsHeaders(req, res);
   if (req.method === 'OPTIONS') return res.status(204).end();
 
   try {
@@ -24,10 +23,15 @@ module.exports = async function handler(req, res) {
     const collection = db.collection('users');
 
     if (req.method.toUpperCase() === 'POST') {
-      const { name, username, password, role } = req.body;
+      // Robust body parsing check
+      const body = req.body || {};
+      const { name, username, password, role } = body;
 
       if (!name || !username || !password) {
-        return res.status(400).json({ error: 'Name, username, and password are required' });
+        return res.status(400).json({ 
+          error: 'Validation error', 
+          message: 'Name, username, and password are required' 
+        });
       }
 
       if (password.length < 6) {
@@ -43,23 +47,33 @@ module.exports = async function handler(req, res) {
       // Assign role (default to worker unless explicitly admin)
       let assignedRole = role === 'admin' ? 'admin' : 'worker';
 
-      // SECURITY CHECK: Restrict admin creation
-      if (assignedRole === 'admin') {
-        const adminCount = await collection.countDocuments({ role: 'admin' });
-        
-        if (adminCount > 0) {
-          // If admins exist, only an existing active admin can create another one
-          const authHeader = req.headers.authorization;
-          if (!authHeader || !authHeader.startsWith("Bearer ")) {
-            return res.status(403).json({ error: 'Forbidden: Only existing admins can create another admin account' });
-          }
+      // SECURITY CHECK: Restrict ANY account creation if an admin already exists
+      const adminCount = await collection.countDocuments({ role: 'admin' });
+      
+      if (adminCount > 0) {
+        // If admins exist, only an existing active admin can create another account
+        const authHeader = req.headers.authorization;
+        if (!authHeader || !authHeader.startsWith("Bearer ")) {
+          return res.status(403).json({ 
+            error: 'Forbidden', 
+            message: 'An administrator account already exists. Only an existing administrator can create new accounts.' 
+          });
+        }
 
-          const token = authHeader.split(" ")[1];
-          const currentUser = await collection.findOne({ activeToken: token, role: 'admin' });
+        const token = authHeader.split(" ")[1];
+        const currentUser = await collection.findOne({ 
+          $or: [
+            { activeTokens: token },
+            { activeToken: token }
+          ],
+          role: 'admin' 
+        });
 
-          if (!currentUser) {
-            return res.status(403).json({ error: 'Forbidden: Only existing admins can create another admin account' });
-          }
+        if (!currentUser) {
+          return res.status(403).json({ 
+            error: 'Forbidden', 
+            message: 'Invalid administrator token. Only an existing administrator can create new accounts.' 
+          });
         }
       }
 

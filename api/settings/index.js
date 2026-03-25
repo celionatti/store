@@ -15,7 +15,7 @@ async function settingsHandler(req, res) {
     }
 
     if (req.method === 'PUT') {
-      const { currency, shopName, shopSlogan, shopAddress, shopPhone } = req.body;
+      const { currency, shopName, shopSlogan, shopAddress, shopPhone, taxRate } = req.body;
       
       const update = {
         currency: (currency || 'NGN').toUpperCase().trim(),
@@ -23,6 +23,7 @@ async function settingsHandler(req, res) {
         shopSlogan: (shopSlogan || '').trim(),
         shopAddress: (shopAddress || '').trim(),
         shopPhone: (shopPhone || '').trim(),
+        taxRate: parseFloat(taxRate) || 0,
         updatedAt: new Date(),
       };
 

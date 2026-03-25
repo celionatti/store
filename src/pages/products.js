@@ -6,6 +6,7 @@ import { formatCurrency, debounce, getStockBadge, escapeHtml, escapeCSV } from '
 import { showToast } from '../components/toast.js';
 import { showModal } from '../components/modal.js';
 import { renderPagination } from '../components/pagination.js';
+import { startPolling } from '../utils/polling.js';
 
 export function renderProducts(container) {
   container.innerHTML = `
@@ -20,6 +21,10 @@ export function renderProducts(container) {
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
           <span class="hide-mobile">Export</span>
         </button>
+        <a href="#/bulk-import" class="btn btn-outline" title="Bulk Import CSV">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+          <span class="hide-mobile">Import</span>
+        </a>
         <a href="#/products/new" class="btn btn-primary">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
           <span class="hide-mobile">Add Product</span>
@@ -35,7 +40,7 @@ export function renderProducts(container) {
   let currentPage = 1;
   const itemsPerPage = 10;
 
-  loadProducts();
+  const stopPolling = startPolling(loadProducts, 30000);
 
   const searchInput = document.getElementById('product-search');
   searchInput?.addEventListener('input', debounce((e) => {
@@ -53,19 +58,36 @@ export function renderProducts(container) {
   document.getElementById('export-products')?.addEventListener('click', () => {
     if (allProducts.length === 0) return;
     
-    const headers = ['Product Name', 'SKU', 'Barcode', 'Category', 'Cost Price', 'Selling Price', 'Quantity', 'IMEIs'].map(escapeCSV);
-    const rows = allProducts.map(p => [
-      escapeCSV(p.name),
-      escapeCSV(p.sku),
-      escapeCSV(p.barcode || ''),
-      escapeCSV(p.category || ''),
-      escapeCSV(p.costPrice),
-      escapeCSV(p.sellingPrice),
-      escapeCSV(p.quantity),
-      escapeCSV((p.itemBarcodes || []).join('; '))
-    ]);
+    const headers = ['Product Name', 'SKU', 'Barcode', 'Category', 'Cost Price', 'Selling Price', 'Quantity', 'Total Cost', 'Potential Revenue', 'Potential Profit', 'IMEIs'].map(escapeCSV);
+    const rows = allProducts.map((p, i) => {
+      const rowNum = i + 2; // Data starts on row 2 (row 1 is header)
+      return [
+        escapeCSV(p.name),
+        escapeCSV(p.sku),
+        escapeCSV(p.barcode || ''),
+        escapeCSV(p.category || ''),
+        escapeCSV(p.costPrice),
+        escapeCSV(p.sellingPrice),
+        escapeCSV(p.quantity),
+        escapeCSV(`=E${rowNum}*G${rowNum}`), // Total Cost
+        escapeCSV(`=F${rowNum}*G${rowNum}`), // Potential Revenue
+        escapeCSV(`=I${rowNum}-H${rowNum}`), // Potential Profit
+        escapeCSV((p.itemBarcodes || []).join('; '))
+      ];
+    });
 
-    const csvContent = [headers, ...rows].map(e => e.join(',')).join('\n');
+    const lastDataRow = rows.length + 1;
+    const summaryRow = [
+      escapeCSV('TOTALS'),
+      '', '', '', '', '',
+      escapeCSV(`=SUM(G2:G${lastDataRow})`),
+      escapeCSV(`=SUM(H2:H${lastDataRow})`),
+      escapeCSV(`=SUM(I2:I${lastDataRow})`),
+      escapeCSV(`=SUM(J2:J${lastDataRow})`),
+      ''
+    ];
+
+    const csvContent = [headers, ...rows, summaryRow].map(e => e.join(',')).join('\n');
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
     const url = URL.createObjectURL(blob);
@@ -81,7 +103,15 @@ export function renderProducts(container) {
     try {
       const data = await api.getProducts();
       allProducts = data.products || data || [];
-      renderTable(allProducts);
+      
+      const query = document.getElementById('product-search')?.value.toLowerCase() || '';
+      renderTable(allProducts.filter(p =>
+        p.name.toLowerCase().includes(query) ||
+        p.sku.toLowerCase().includes(query) ||
+        (p.barcode || '').toLowerCase().includes(query) ||
+        (p.category || '').toLowerCase().includes(query) ||
+        (Array.isArray(p.itemBarcodes) && p.itemBarcodes.some(b => b.toLowerCase().includes(query)))
+      ));
     } catch (err) {
       showToast(err.message || 'Failed to load products', 'error');
       document.getElementById('products-table').innerHTML =
@@ -115,9 +145,9 @@ export function renderProducts(container) {
             <tr>
               <th>Product</th>
               <th>SKU</th>
-              <th class="hide-mobile">Category</th>
-              <th class="hide-mobile">Cost</th>
-              <th class="hide-mobile">Price</th>
+              <th>Category</th>
+              <th>Cost</th>
+              <th>Price</th>
               <th>Stock</th>
               <th>Status</th>
               <th>Actions</th>
@@ -126,14 +156,14 @@ export function renderProducts(container) {
           <tbody>
             ${paginatedProducts.map(p => `
               <tr>
-                <td><strong>${escapeHtml(p.name)}</strong></td>
-                <td class="text-muted text-sm">${escapeHtml(p.sku)}</td>
-                <td class="hide-mobile">${escapeHtml(p.category || '—')}</td>
-                <td class="hide-mobile">${formatCurrency(p.costPrice)}</td>
-                <td class="hide-mobile">${formatCurrency(p.sellingPrice)}</td>
-                <td>${p.quantity}</td>
-                <td>${getStockBadge(p.quantity, p.reorderLevel)}</td>
-                <td>
+                <td data-label="Product"><strong>${escapeHtml(p.name)}</strong></td>
+                <td data-label="SKU" class="text-muted text-sm">${escapeHtml(p.sku)}</td>
+                <td data-label="Category">${escapeHtml(p.category || '—')}</td>
+                <td data-label="Cost">${formatCurrency(p.costPrice)}</td>
+                <td data-label="Price">${formatCurrency(p.sellingPrice)}</td>
+                <td data-label="Stock">${p.quantity}</td>
+                <td data-label="Status">${getStockBadge(p.quantity, p.reorderLevel)}</td>
+                <td data-label="Actions">
                   <div class="flex gap-sm">
                     <a href="#/products/edit/${p._id}" class="btn-icon" title="Edit">
                       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
@@ -184,4 +214,9 @@ export function renderProducts(container) {
       });
     });
   }
+
+  // Cleanup
+  return () => {
+    stopPolling();
+  };
 }

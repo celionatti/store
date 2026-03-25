@@ -19,7 +19,13 @@ import { renderLogin, logout } from './pages/login.js';
 import { renderRegister } from './pages/register.js';
 import { renderExpenses } from './pages/expenses.js';
 import { renderSettings } from './pages/settings.js';
+import { renderSuppliers } from './pages/suppliers.js';
+import { renderStockAlerts } from './pages/stockAlerts.js';
+import { renderBulkImport } from './pages/bulkImport.js';
 import { renderAuditLogs } from './pages/auditLogs.js';
+import { renderCategories } from './pages/categories.js';
+import { renderCustomerHistory } from './pages/customerHistory.js';
+import { initServerStatus } from './components/ServerStatus.js';
 
 import { getTheme, setTheme, toggleTheme } from './utils/helpers.js';
 
@@ -27,11 +33,30 @@ import { getTheme, setTheme, toggleTheme } from './utils/helpers.js';
 const defaultStyle = document.querySelector('link[href*="style.css"][href*="src"]');
 if (defaultStyle) defaultStyle.remove();
 
+import { api } from './api.js';
+
 // Initialize sidebar, bottom navigation and theme
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
   renderSidebar();
   renderBottomNav();
+  initServerStatus();
   
+  // Sync global settings
+  try {
+    const data = await api.getSettings();
+    if (data?.settings) {
+      const { currency, shopName } = data.settings;
+      if (currency) {
+        import('./utils/helpers.js').then(h => h.setCurrentCurrency(currency));
+      }
+      if (shopName) {
+        import('./utils/helpers.js').then(h => h.updateBrandName(shopName));
+      }
+    }
+  } catch (err) {
+    console.warn('Failed to sync settings:', err);
+  }
+
   // Initialize theme
   const theme = getTheme();
   setTheme(theme);
@@ -70,10 +95,16 @@ const router = new Router([
   { path: '/scanner',        title: 'Scanner',      render: renderScanner,   requiresAuth: true, allowedRoles: ['admin', 'worker'] },
   { path: '/customers',      title: 'Customers',    render: renderCustomers, requiresAuth: true, allowedRoles: ['admin', 'worker'] },
   { path: '/customers/new',  title: 'Add Customer', render: renderAddCustomer, requiresAuth: true, allowedRoles: ['admin', 'worker'] },
+  { path: '/customers/edit/:id', title: 'Edit Customer', render: renderAddCustomer, requiresAuth: true, allowedRoles: ['admin', 'worker'] },
+  { path: '/customers/history/:id', title: 'Customer History', render: renderCustomerHistory, requiresAuth: true, allowedRoles: ['admin', 'worker'] },
   { path: '/workers',        title: 'Workers',      render: renderWorkers,   requiresAuth: true, allowedRoles: ['admin'] },
   { path: '/workers/new',    title: 'Register Worker', render: renderAddWorker, requiresAuth: true, allowedRoles: ['admin'] },
   { path: '/expenses',       title: 'Expenses',     render: renderExpenses,  requiresAuth: true, allowedRoles: ['admin'] },
   { path: '/audit-logs',     title: 'Activity History', render: renderAuditLogs, requiresAuth: true, allowedRoles: ['admin'] },
+  { path: '/suppliers',      title: 'Suppliers',    render: renderSuppliers, requiresAuth: true, allowedRoles: ['admin'] },
+  { path: '/categories',     title: 'Categories',   render: renderCategories, requiresAuth: true, allowedRoles: ['admin'] },
+  { path: '/stock-alerts',   title: 'Stock Alerts', render: renderStockAlerts, requiresAuth: true, allowedRoles: ['admin', 'worker'] },
+  { path: '/bulk-import',    title: 'Bulk Import',  render: renderBulkImport, requiresAuth: true, allowedRoles: ['admin'] },
   { path: '/settings',       title: 'Settings',     render: renderSettings,  requiresAuth: true, allowedRoles: ['admin'] },
   { path: '/login',          title: 'Sign In',      render: renderLogin },
   { path: '/register',       title: 'Register',     render: renderRegister },

@@ -5,7 +5,7 @@ import { api } from '../api.js';
 import { formatCurrency, formatDateTime, escapeHtml } from '../utils/helpers.js';
 import { showToast } from '../components/toast.js';
 
-export function renderStockEntry(container) {
+export function renderStockEntry(container, params = {}) {
   container.innerHTML = `
     <div class="page-header">
       <h2>Stock Entry</h2>
@@ -26,7 +26,14 @@ export function renderStockEntry(container) {
           </div>
           <div class="form-group">
             <label class="form-label" for="sf-supplier">Supplier</label>
-            <input type="text" id="sf-supplier" class="form-input" placeholder="e.g. Acme Supply Co." />
+            <div class="flex gap-sm">
+              <select id="sf-supplier" class="form-select" style="flex: 1;">
+                <option value="">Select a supplier…</option>
+              </select>
+              <a href="#/suppliers" class="btn btn-icon" title="Add New Supplier">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              </a>
+            </div>
           </div>
           <div class="form-group">
             <label class="form-label" for="sf-cost">Total Cost</label>
@@ -50,6 +57,8 @@ export function renderStockEntry(container) {
 
   // Load products for dropdown
   loadProductOptions();
+  // Load suppliers for dropdown
+  loadSupplierOptions();
   // Load stock history
   loadStockHistory();
 
@@ -65,7 +74,7 @@ export function renderStockEntry(container) {
       productId,
       productName,
       quantity: parseInt(document.getElementById('sf-quantity').value) || 0,
-      supplier: document.getElementById('sf-supplier').value.trim(),
+      supplier: document.getElementById('sf-supplier').selectedOptions[0]?.text || '',
       totalCost: parseFloat(document.getElementById('sf-cost').value) || 0,
     };
 
@@ -103,8 +112,29 @@ export function renderStockEntry(container) {
         opt.textContent = `${p.name} (${p.sku})`;
         select.appendChild(opt);
       });
+
+      if (params.productId) {
+        select.value = params.productId;
+      }
     } catch (err) {
       showToast('Failed to load products', 'error');
+    }
+  }
+
+  async function loadSupplierOptions() {
+    try {
+      const data = await api.getSuppliers();
+      const suppliers = data.suppliers || data || [];
+      const select = document.getElementById('sf-supplier');
+      if (!select) return;
+      suppliers.forEach(s => {
+        const opt = document.createElement('option');
+        opt.value = s._id;
+        opt.textContent = s.name;
+        select.appendChild(opt);
+      });
+    } catch (err) {
+      showToast('Failed to load suppliers', 'error');
     }
   }
 

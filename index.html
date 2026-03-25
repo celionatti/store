@@ -2,26 +2,28 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta
       name="description"
       content="Store Bookkeeping & Inventory Management System — Track products, stock, sales, and revenue for your retail business."
     />
-    <title>DFE-Store — Inventory & Bookkeeping</title>
+    <title>Store — Inventory & Bookkeeping</title>
 
     <!-- Favicon & Icons -->
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <link rel="apple-touch-icon" href="/icon-512.png" />
+    <link rel="apple-touch-icon" href="/icon-192.png" />
+    <link rel="apple-touch-icon" sizes="512x512" href="/icon-512.png" />
 
     <!-- PWA Manifest -->
     <link rel="manifest" href="/manifest.json" />
     <meta name="theme-color" content="#4F46E5" />
     <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta
       name="apple-mobile-web-app-status-bar-style"
       content="black-translucent"
     />
-    <meta name="apple-mobile-web-app-title" content="DFE-Store" />
+    <meta name="apple-mobile-web-app-title" content="Store" />
 
     <!-- Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -52,7 +54,7 @@
           <line x1="3" y1="6" x2="21" y2="6" />
           <path d="M16 10a4 4 0 01-8 0" />
         </svg>
-        <span class="brand-text">DFE-Store</span>
+        <span class="brand-text">Store</span>
       </div>
       <nav class="sidebar-nav" id="sidebar-nav"></nav>
       <div class="sidebar-footer">
@@ -82,7 +84,7 @@
           Logout
         </button>
         <small style="display: block; margin-top: var(--space-sm); opacity: 0.6"
-          >&copy; 2026 DFE-Store</small
+          >&copy; 2026 <span id="brand-footer-name">Store</span></small
         >
       </div>
     </aside>

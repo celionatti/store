@@ -3,6 +3,7 @@
  * Route: /api/workers/:id
  */
 const { ObjectId } = require('mongodb');
+const { connectToDatabase } = require('../_utils/db');
 const { withAuth } = require('../_utils/auth');
 const { logActivity } = require('../_utils/audit');
 

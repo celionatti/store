@@ -1,5 +1,5 @@
 /**
- * Sales Page
+ * Sales Page — Multi-Item Cart Checkout
  */
 import { api } from '../api.js';
 import { formatCurrency, formatDateTime, escapeHtml } from '../utils/helpers.js';
@@ -8,6 +8,7 @@ import { showModal } from '../components/modal.js';
 import { renderPagination } from '../components/pagination.js';
 import { printReceipt } from '../utils/receipt.js';
 import { getUser } from './login.js';
+import { startPolling } from '../utils/polling.js';
 
 export function renderSales(container, params = {}) {
   const currentUser = getUser();
@@ -32,7 +33,7 @@ export function renderSales(container, params = {}) {
     </div>
     ` : ''}
     <div class="card mb-lg">
-      <h3 style="margin-bottom: var(--space-md);">Record New Sale</h3>
+      <h3 style="margin-bottom: var(--space-md);">Add Item</h3>
       <form id="sale-form">
         <div class="form-grid">
           <div class="form-group">
@@ -62,19 +63,55 @@ export function renderSales(container, params = {}) {
             <input type="number" id="sl-sale-price" class="form-input" required min="0" step="0.01" placeholder="0.00" />
           </div>
           <div class="form-group">
-            <label class="form-label">Total Amount</label>
+            <label class="form-label">Item Total</label>
             <div id="sl-total" class="font-bold" style="padding: 10px 0; font-size: var(--font-size-xl);">—</div>
           </div>
           <div class="form-group">
-            <label class="form-label">Estimated Profit</label>
+            <label class="form-label">Est. Profit</label>
             <div id="sl-profit" class="text-success font-bold" style="padding: 10px 0;">—</div>
           </div>
         </div>
-        <button type="submit" class="btn btn-success mt-md" id="sl-submit">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>
-          <span class="hide-mobile">Record Sale</span>
+        <button type="submit" class="btn btn-primary mt-md" id="sl-add-cart">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 002 1.61h9.72a2 2 0 002-1.61L23 6H6"/></svg>
+          <span>Add to Cart</span>
         </button>
       </form>
+    </div>
+
+    <div class="card mb-lg" id="cart-section" style="display: none;">
+      <div class="flex flex-between flex-align-center mb-md">
+        <h3 style="margin: 0;">🛒 Shopping Cart</h3>
+        <button class="btn btn-outline btn-sm" id="cart-clear">Clear All</button>
+      </div>
+      <div id="cart-items"></div>
+      
+      <div id="cart-customer-section" style="border-top: 1px solid var(--color-border); padding-top: var(--space-md); margin-top: var(--space-md);">
+        <div class="form-group">
+          <label class="form-label" for="cart-customer">Assign to Customer (Optional)</label>
+          <div class="flex gap-sm">
+            <select id="cart-customer" class="form-select" style="flex: 1;">
+              <option value="">Walk-in Customer</option>
+            </select>
+            <a href="#/customers/new" class="btn btn-icon" title="Add New Customer">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            </a>
+          </div>
+        </div>
+      </div>
+
+      <div id="cart-footer" style="border-top: 2px solid var(--color-border); padding-top: var(--space-md); margin-top: var(--space-md);">
+        <div class="flex flex-between" style="margin-bottom: var(--space-sm);">
+          <span class="text-muted" id="cart-count">0 items</span>
+          <span class="font-bold" id="cart-profit-total" style="color: var(--color-success);">Profit: —</span>
+        </div>
+        <div class="flex flex-between flex-align-center">
+          <span style="font-size: var(--font-size-xl); font-weight: 700;" id="cart-grand-total">Total: —</span>
+          <button class="btn btn-success" id="cart-checkout-btn">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><polyline points="20 6 9 17 4 12"/></svg>
+            <span>Checkout</span>
+          </button>
+        </div>
+      </div>
     </div>
 
     <div class="card">
@@ -88,13 +125,39 @@ export function renderSales(container, params = {}) {
   let productsMap = {};
   let currentSalesPage = 1;
   const salesPerPage = 10;
-  let shopName = 'Celio Store';
-  let shopSlogan = 'Professional Store Management';
-  let shopAddress = '';
-  let shopPhone = '';
+  let shopSettings = {};
+  let cart = [];
 
-  loadProductOptions();
-  loadSalesHistory();
+  const stopProductsPolling = startPolling(loadProductOptions, 60000); // Products refresh every 60s
+  const stopSalesPolling = startPolling(loadSalesHistory, 20000);    // Sales history refresh every 20s
+
+  // Helper to populate IMEI dropdown, filtering out IMEIs already in cart
+  function refreshImeiDropdown() {
+    const product = productsMap[productSelect?.value];
+    const imeiGroup = document.getElementById('sl-imei-group');
+    const imeiSelect = document.getElementById('sl-imei');
+    if (!product || !imeiGroup || !imeiSelect) return;
+
+    if (product.itemBarcodes && product.itemBarcodes.length > 0) {
+      const cartImeis = cart.filter(i => i.productId === product._id && i.soldItemBarcode).map(i => i.soldItemBarcode);
+      const availableImeis = product.itemBarcodes.filter(imei => !cartImeis.includes(imei));
+
+      if (availableImeis.length > 0) {
+        imeiGroup.style.display = 'block';
+        imeiSelect.innerHTML = '<option value="">Select an IMEI...</option>' +
+          availableImeis.map(imei => `<option value="${escapeHtml(imei)}">${escapeHtml(imei)}</option>`).join('');
+      } else {
+        imeiGroup.style.display = 'block';
+        imeiSelect.innerHTML = '<option value="">All IMEIs in cart</option>';
+      }
+      qtyInput.value = 1;
+      qtyInput.readOnly = true;
+    } else {
+      imeiGroup.style.display = 'none';
+      imeiSelect.innerHTML = '<option value="">Select an IMEI...</option>';
+      qtyInput.readOnly = false;
+    }
+  }
 
   // Auto-calculate totals
   const productSelect = document.getElementById('sl-product');
@@ -107,17 +170,7 @@ export function renderSales(container, params = {}) {
     
     if (product) {
       salePriceInput.value = product.sellingPrice;
-      if (product.itemBarcodes && product.itemBarcodes.length > 0) {
-        imeiGroup.style.display = 'block';
-        imeiSelect.innerHTML = '<option value="">Select an IMEI...</option>' + 
-          product.itemBarcodes.map(imei => `<option value="${escapeHtml(imei)}">${escapeHtml(imei)}</option>`).join('');
-        qtyInput.value = 1;
-        qtyInput.readOnly = true;
-      } else {
-        imeiGroup.style.display = 'none';
-        imeiSelect.innerHTML = '<option value="">Select an IMEI...</option>';
-        qtyInput.readOnly = false;
-      }
+      refreshImeiDropdown();
     } else {
       salePriceInput.value = '';
       imeiGroup.style.display = 'none';
@@ -148,8 +201,54 @@ export function renderSales(container, params = {}) {
     }
   }
 
+  // --- Cart Management ---
+  function renderCart() {
+    const section = document.getElementById('cart-section');
+    const itemsEl = document.getElementById('cart-items');
+    
+    if (cart.length === 0) {
+      section.style.display = 'none';
+      return;
+    }
+
+    section.style.display = 'block';
+    const grandTotal = cart.reduce((s, i) => s + i.totalAmount, 0);
+    const totalProfit = cart.reduce((s, i) => s + i.profit, 0);
+
+    itemsEl.innerHTML = cart.map((item, idx) => `
+      <div style="display: flex; align-items: center; justify-content: space-between; padding: var(--space-sm) 0; border-bottom: 1px solid var(--color-border);">
+        <div style="flex: 1;">
+          <strong>${escapeHtml(item.productName)}</strong>
+          ${item.soldItemBarcode ? `<br><small class="text-muted">IMEI: ${escapeHtml(item.soldItemBarcode)}</small>` : ''}
+          <br><small class="text-muted">${item.quantity}x ${formatCurrency(item.unitPrice)}</small>
+        </div>
+        <div style="text-align: right; min-width: 100px;">
+          <strong>${formatCurrency(item.totalAmount)}</strong>
+          <br><small class="${item.profit >= 0 ? 'text-success' : 'text-danger'}">${formatCurrency(item.profit)}</small>
+        </div>
+        <button class="btn-icon danger" data-remove-cart="${idx}" title="Remove" style="margin-left: var(--space-sm);">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+    `).join('');
+
+    document.getElementById('cart-count').textContent = `${cart.length} item${cart.length !== 1 ? 's' : ''}`;
+    document.getElementById('cart-grand-total').textContent = `Total: ${formatCurrency(grandTotal)}`;
+    document.getElementById('cart-profit-total').textContent = `Profit: ${formatCurrency(totalProfit)}`;
+
+    // Remove item handlers
+    itemsEl.querySelectorAll('button[data-remove-cart]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        cart.splice(parseInt(btn.dataset.removeCart), 1);
+        renderCart();
+        refreshImeiDropdown();
+      });
+    });
+  }
+
+  // Add to Cart
   const form = document.getElementById('sale-form');
-  form?.addEventListener('submit', async (e) => {
+  form?.addEventListener('submit', (e) => {
     e.preventDefault();
 
     const product = productsMap[productSelect.value];
@@ -164,8 +263,10 @@ export function renderSales(container, params = {}) {
       return;
     }
 
-    if (qty > product.quantity) {
-      showToast(`Only ${product.quantity} in stock!`, 'warning');
+    // Check stock considering items already in cart for the same product
+    const inCartQty = cart.filter(i => i.productId === product._id).reduce((s, i) => s + i.quantity, 0);
+    if (qty + inCartQty > product.quantity) {
+      showToast(`Only ${product.quantity - inCartQty} left in stock!`, 'warning');
       return;
     }
 
@@ -184,9 +285,14 @@ export function renderSales(container, params = {}) {
         showToast('Please select the specific IMEI being sold', 'warning');
         return;
       }
+      // Check if this IMEI is already in the cart
+      if (cart.some(i => i.soldItemBarcode === soldItemBarcode)) {
+        showToast('This IMEI is already in the cart', 'warning');
+        return;
+      }
     }
 
-    const payload = {
+    cart.push({
       productId: product._id,
       productName: product.name,
       quantity: qty,
@@ -195,30 +301,69 @@ export function renderSales(container, params = {}) {
       costPrice: product.costPrice,
       totalAmount: salePrice * qty,
       profit: (salePrice - product.costPrice) * qty,
-    };
+    });
 
-    const btn = document.getElementById('sl-submit');
+    renderCart();
+    refreshImeiDropdown();
+    showToast(`${product.name} added to cart`, 'success');
+
+    // Reset form for next item
+    productSelect.value = '';
+    qtyInput.value = 1;
+    qtyInput.readOnly = false;
+    salePriceInput.value = '';
+    document.getElementById('sl-total').textContent = '—';
+    document.getElementById('sl-profit').textContent = '—';
+    document.getElementById('sl-imei-group').style.display = 'none';
+  });
+
+  // Clear Cart
+  document.getElementById('cart-clear')?.addEventListener('click', () => {
+    showModal('Clear Cart', 'Remove all items from the cart?', () => {
+      cart = [];
+      renderCart();
+      refreshImeiDropdown();
+    });
+  });
+
+  // Checkout
+  document.getElementById('cart-checkout-btn')?.addEventListener('click', async () => {
+    if (cart.length === 0) {
+      showToast('Cart is empty', 'warning');
+      return;
+    }
+
+    const btn = document.getElementById('cart-checkout-btn');
     btn.disabled = true;
     btn.textContent = 'Processing…';
 
+    const customerSelect = document.getElementById('cart-customer');
+    const customerId = customerSelect?.value || null;
+    const customerName = customerId ? customerSelect.options[customerSelect.selectedIndex]?.text : 'Walk-in Customer';
+
     try {
-      const res = await api.createSale(payload);
+      const res = await api.createCartSale({
+        items: cart,
+        customerId,
+        customerName
+      });
+      const salesItems = res.sales || [res.sale || cart];
+
       showModal(
         'Sale Recorded',
-        `Sale successful! Would you like to print a receipt for this transaction?`,
-        () => printReceipt(res.sale || payload, shopName, shopSlogan, shopAddress, shopPhone), // Pass contact info
-        { confirmText: 'Print Receipt', cancelText: 'Close' }
+        `${cart.length} item${cart.length > 1 ? 's' : ''} sold successfully! Would you like to print the receipt?`,
+        () => printReceipt(salesItems, shopSettings),
       );
-      form.reset();
-      document.getElementById('sl-total').textContent = '—';
-      document.getElementById('sl-profit').textContent = '—';
-      // Refresh product list for updated quantities
+
+      cart = [];
+      renderCart();
       loadProductOptions();
       loadSalesHistory();
     } catch (err) {
-      showToast(err.message || 'Failed to record sale', 'error');
+      showToast(err.message || 'Checkout failed', 'error');
     } finally {
-      btn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg> Record Sale`;
+      btn.disabled = false;
+      btn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><polyline points="20 6 9 17 4 12"/></svg> <span>Checkout</span>`;
     }
   });
 
@@ -251,22 +396,11 @@ export function renderSales(container, params = {}) {
         api.getSettings()
       ]);
       const products = data.products || data || [];
-      if (settingsRes.settings && settingsRes.settings.shopName) {
-        shopName = settingsRes.settings.shopName;
-      }
-      if (settingsRes.settings && settingsRes.settings.shopSlogan) {
-        shopSlogan = settingsRes.settings.shopSlogan;
-      }
-      if (settingsRes.settings && settingsRes.settings.shopAddress) {
-        shopAddress = settingsRes.settings.shopAddress;
-      }
-      if (settingsRes.settings && settingsRes.settings.shopPhone) {
-        shopPhone = settingsRes.settings.shopPhone;
-      }
+      shopSettings = settingsRes.settings || {};
+      
       productsMap = {};
       const select = document.getElementById('sl-product');
       if (!select) return;
-      // Clear and re-populate
       select.innerHTML = '<option value="">Select a product…</option>';
       products.forEach(p => {
         productsMap[p._id] = p;
@@ -279,23 +413,39 @@ export function renderSales(container, params = {}) {
       // Handle pre-selection from params
       if (params.productId) {
         select.value = params.productId;
-        // Trigger change event to populate IMEI and update totals
         const event = new Event('change');
         select.dispatchEvent(event);
 
-        // If a barcode/IMEI was also passed, try to select it
         if (params.barcode) {
           const imeiSelect = document.getElementById('sl-imei');
           if (imeiSelect && [...imeiSelect.options].some(o => o.value === params.barcode)) {
             imeiSelect.value = params.barcode;
-            // Trigger change/input on these to ensure totals are fresh if needed
-            // (though for IMEI, qty is fixed to 1 and cost/price are from product)
             updateTotals();
           }
         }
       }
     } catch (err) {
       showToast('Failed to load products', 'error');
+    }
+    // Also load customers for the cart dropdown
+    loadCustomerOptions();
+  }
+
+  async function loadCustomerOptions() {
+    try {
+      const data = await api.getCustomers();
+      const customers = data.customers || data || [];
+      const select = document.getElementById('cart-customer');
+      if (!select) return;
+      
+      // Preserve existing selection if possible (though unlikely to change often)
+      const currentVal = select.value;
+      select.innerHTML = '<option value="">Walk-in Customer</option>' +
+        customers.map(c => `<option value="${c._id}">${escapeHtml(c.name)}</option>`).join('');
+      
+      if (currentVal) select.value = currentVal;
+    } catch (err) {
+      console.warn('Failed to load customers for cart:', err);
     }
   }
 
@@ -306,7 +456,6 @@ export function renderSales(container, params = {}) {
       const wrapper = document.getElementById('sales-history');
       if (!wrapper) return;
 
-      // Update bulk delete button visibility based on records existence
       const bulkSelect = document.getElementById('sl-bulk-delete-select');
       const bulkBtn = document.getElementById('sl-bulk-delete-btn');
       
@@ -315,20 +464,15 @@ export function renderSales(container, params = {}) {
           if (bulkBtn) bulkBtn.style.display = 'none';
           return;
         }
-        
         const months = parseInt(bulkSelect.value);
         const cutoffDate = new Date();
         cutoffDate.setMonth(cutoffDate.getMonth() - months);
-        
-        // Check if any sale is older than the cutoff date
         const hasOldRecords = sales.some(s => new Date(s.createdAt) < cutoffDate);
         bulkBtn.style.display = hasOldRecords ? 'inline-block' : 'none';
       };
 
       if (bulkSelect) {
-        // Run once on load
         checkBulkEligibility();
-        // Run whenever the dropdown changes
         bulkSelect.addEventListener('change', checkBulkEligibility);
       }
 
@@ -337,7 +481,6 @@ export function renderSales(container, params = {}) {
         return;
       }
 
-      // Slice for pagination
       const start = (currentSalesPage - 1) * salesPerPage;
       const paginatedSales = sales.slice(start, start + salesPerPage);
 
@@ -348,29 +491,48 @@ export function renderSales(container, params = {}) {
               <tr>
                 <th>Product</th>
                 <th>Qty</th>
-                <th class="hide-mobile">Unit Price</th>
+                <th>Unit Price</th>
                 <th>Total</th>
-                <th class="hide-mobile">Profit</th>
-                <th class="hide-mobile">Date</th>
+                <th>Profit</th>
+                <th>Date</th>
                 <th>Actions</th>
               </tr>
             </thead>
             <tbody>
               ${paginatedSales.map(s => `
                 <tr>
-                  <td><strong>${escapeHtml(s.productName || '—')}</strong>${s.soldItemBarcode ? `<br><small class="text-muted" style="word-break: break-all;">IMEI: ${escapeHtml(s.soldItemBarcode)}</small>` : ''}</td>
-                  <td>${s.quantity}</td>
-                  <td class="hide-mobile">${formatCurrency(s.unitPrice)}</td>
-                  <td class="font-bold">${formatCurrency(s.totalAmount)}</td>
-                  <td class="text-success font-bold hide-mobile">${formatCurrency(s.profit)}</td>
-                  <td class="text-muted text-sm hide-mobile">${formatDateTime(s.createdAt)}</td>
-                  <td style="white-space: nowrap;">
+                  <td data-label="Product">
+                    <strong>${escapeHtml(s.productName || '—')}</strong>
+                    ${s.soldItemBarcode ? `<br><small class="text-muted" style="word-break: break-all;">IMEI: ${escapeHtml(s.soldItemBarcode)}</small>` : ''}
+                    ${s.customerName ? `<br><small class="text-info">Cust: ${escapeHtml(s.customerName)}</small>` : ''}
+                    ${s.transactionId ? `<br><small class="text-muted text-xs">TXN: ${s.transactionId.slice(-6)}</small>` : ''}
+                  </td>
+                  <td data-label="Qty">${s.quantity}</td>
+                  <td data-label="Unit Price">${formatCurrency(s.unitPrice)}</td>
+                  <td data-label="Total" class="font-bold">${formatCurrency(s.totalAmount)}</td>
+                  <td data-label="Profit" class="text-success font-bold">${formatCurrency(s.profit)}</td>
+                  <td data-label="Date" class="text-muted text-sm">
+                    ${formatDateTime(s.createdAt)}
+                    ${s.cancellationRequested ? `<br><span class="badge" style="background:var(--color-warning-bg);color:var(--color-warning);font-size:0.75rem;padding:2px 6px;border-radius:4px;margin-top:4px;display:inline-block;">Cancel Requested</span>` : ''}
+                  </td>
+                  <td data-label="Actions" style="white-space: nowrap;">
                     <button class="btn-icon" data-print="${s._id}" title="Print Receipt">
                       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><path d="M6 9V2h12v7"></path><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg>
                     </button>
-                    <button class="btn-icon danger" data-refund="${s._id}" title="Refund/Cancel Sale">
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><polyline points="1 4 1 10 7 10"></polyline><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path></svg>
-                    </button>
+                    ${isAdmin ? `
+                      <button class="btn-icon danger" data-refund="${s._id}" title="Refund/Cancel Sale">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><polyline points="1 4 1 10 7 10"></polyline><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path></svg>
+                      </button>
+                      ${s.cancellationRequested ? `
+                        <button class="btn-icon warning" data-reject-report="${s._id}" title="Reject Cancellation Request: ${escapeHtml(s.cancellationReason || '')}">
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                        </button>
+                      ` : ''}
+                    ` : `
+                      <button class="btn-icon warning" data-report="${s._id}" title="${s.cancellationRequested ? 'Cancellation Pending' : 'Report Issue / Request Cancellation'}" ${s.cancellationRequested ? 'disabled style="opacity:0.5;cursor:not-allowed;"' : ''}>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"></path><line x1="4" y1="22" x2="4" y2="15"></line></svg>
+                      </button>
+                    `}
                   </td>
                 </tr>
               `).join('')}
@@ -387,10 +549,7 @@ export function renderSales(container, params = {}) {
         salesPerPage,
         (newPage) => {
           currentSalesPage = newPage;
-          loadSalesHistory(); // In this case, we re-fetch or re-render
-          // Since loadSalesHistory fetches again, we might want to just renderTable 
-          // but the current structure fetches every time. For client-side, we should 
-          // separate fetch from render. Let's fix that.
+          loadSalesHistory();
         }
       );
 
@@ -398,7 +557,15 @@ export function renderSales(container, params = {}) {
         btn.addEventListener('click', () => {
           const saleId = btn.dataset.print;
           const sale = sales.find(s => s._id === saleId);
-          if (sale) printReceipt(sale, shopName, shopSlogan, shopAddress, shopPhone); // Pass contact info
+          if (sale) {
+            // If part of a multi-item transaction, print all items
+            if (sale.transactionId) {
+              const txnSales = sales.filter(s => s.transactionId === sale.transactionId);
+              printReceipt(txnSales, shopSettings);
+            } else {
+              printReceipt(sale, shopSettings);
+            }
+          }
         });
       });
 
@@ -413,9 +580,56 @@ export function renderSales(container, params = {}) {
                 await api.deleteSale(saleId);
                 showToast('Sale effectively refunded and reversed.', 'success');
                 loadSalesHistory();
-                loadProductOptions(); // update available qty
+                loadProductOptions();
               } catch (err) {
                 showToast(err.message || 'Failed to reverse sale', 'error');
+              }
+            }
+          );
+        });
+      });
+
+      wrapper.querySelectorAll('button[data-reject-report]').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const saleId = btn.dataset.rejectReport;
+          showModal(
+            'Reject Request',
+            'Are you sure you want to reject this cancellation request and keep the sale?',
+            async () => {
+              try {
+                await api.rejectSaleReport(saleId);
+                showToast('Report rejected.', 'success');
+                loadSalesHistory();
+              } catch (err) {
+                showToast(err.message || 'Failed to reject report', 'error');
+              }
+            }
+          );
+        });
+      });
+
+      wrapper.querySelectorAll('button[data-report]').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const saleId = btn.dataset.report;
+          showModal(
+            'Report Sale',
+            `
+              <p class="mb-sm">Please provide a reason for requesting the cancellation of this sale:</p>
+              <textarea id="modal-report-reason" class="form-input" rows="3" placeholder="Customer returned item, incorrect entry, etc."></textarea>
+            `,
+            async () => {
+              const reasonInput = document.getElementById('modal-report-reason');
+              const reason = reasonInput ? reasonInput.value : '';
+              if (!reason.trim()) {
+                showToast('You must provide a reason.', 'warning');
+                return false; // prevent closing
+              }
+              try {
+                await api.reportSale(saleId, reason);
+                showToast('Cancellation request submitted.', 'success');
+                loadSalesHistory();
+              } catch (err) {
+                showToast(err.message || 'Failed to submit report', 'error');
               }
             }
           );
@@ -426,4 +640,10 @@ export function renderSales(container, params = {}) {
         '<div class="empty-state"><p>Failed to load sales.</p></div>';
     }
   }
+
+  // Cleanup
+  return () => {
+    stopProductsPolling();
+    stopSalesPolling();
+  };
 }

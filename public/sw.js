@@ -1,13 +1,14 @@
 /**
- * DFE-Store Service Worker
+ * Store Service Worker
  * Provides offline caching and PWA support
  */
-const CACHE_NAME = 'dfe-store-v1';
+const CACHE_NAME = 'store-v1';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
   '/style.css',
   '/src/main.js',
+  '/icon-192.png',
   '/icon-512.png',
   '/favicon.svg',
 ];

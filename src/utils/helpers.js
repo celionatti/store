@@ -10,15 +10,31 @@ export function setCurrentCurrency(currency) {
   localStorage.setItem('store_currency', currency);
 }
 
+export function getCurrencySymbol() {
+  const currency = getCurrentCurrency();
+  const symbols = {
+    'NGN': '₦',
+    'USD': '$',
+    'EUR': '€',
+    'GBP': '£'
+  };
+  return symbols[currency] || currency;
+}
+
 export function formatCurrency(amount) {
   const currency = getCurrentCurrency();
   const locale = currency === 'NGN' ? 'en-NG' : 'en-US';
 
-  return new Intl.NumberFormat(locale, {
-    style: 'currency',
-    currency: currency,
-    minimumFractionDigits: 2,
-  }).format(amount || 0);
+  try {
+    return new Intl.NumberFormat(locale, {
+      style: 'currency',
+      currency: currency,
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 2,
+    }).format(amount || 0);
+  } catch (e) {
+    return `${getCurrencySymbol()}${Number(amount || 0).toLocaleString()}`;
+  }
 }
 
 export function formatDate(dateStr) {
@@ -97,4 +113,25 @@ export function escapeCSV(val) {
     return `"${str.replace(/"/g, '""')}"`;
   }
   return str;
+}
+
+/**
+ * Updates the store name across all UI elements
+ * @param {string} name - The store name
+ */
+export function updateBrandName(name) {
+  if (!name) return;
+  
+  // Update document title
+  document.title = `${name} — Inventory & Bookkeeping`;
+  
+  // Update all brand text elements (sidebar, etc)
+  const brandEls = document.querySelectorAll('.brand-text');
+  brandEls.forEach(el => el.textContent = name);
+  
+  // Update footer copyright name if it exists
+  const footerBrand = document.getElementById('brand-footer-name');
+  if (footerBrand) {
+    footerBrand.textContent = name;
+  }
 }

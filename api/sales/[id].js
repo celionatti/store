@@ -22,6 +22,10 @@ async function singleSaleHandler(req, res) {
     }
 
     if (req.method === 'DELETE') {
+      if (req.user.role !== 'admin') {
+        return res.status(403).json({ error: 'Forbidden: Admin access required' });
+      }
+
       const { db } = await connectToDatabase();
       const saleId = new ObjectId(id);
 

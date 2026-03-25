@@ -55,28 +55,85 @@ async function dashboardHandler(req, res) {
     ]).toArray();
     const monthlyRevenue = monthlyRevenueAgg[0]?.total || 0;
 
-    // Revenue by month (last 6 months)
-    const sixMonthsAgo = new Date();
-    sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
-    const revenueByMonth = await salesCol.aggregate([
-      { $match: { createdAt: { $gte: sixMonthsAgo } } },
-      {
-        $group: {
-          _id: {
-            year: { $year: '$createdAt' },
-            month: { $month: '$createdAt' },
-          },
-          total: { $sum: '$totalAmount' },
-        },
-      },
-      { $sort: { '_id.year': 1, '_id.month': 1 } },
-    ]).toArray();
-
+    // Revenue Trend Aggregation
+    const { period = 'monthly' } = req.query;
+    let revenueData = [];
     const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-    const formattedRevenue = revenueByMonth.map(m => ({
-      label: `${monthNames[m._id.month - 1]} ${m._id.year}`,
-      total: m.total,
-    }));
+
+    if (period === 'daily') {
+      // Last 14 days
+      const fourteenDaysAgo = new Date();
+      fourteenDaysAgo.setDate(fourteenDaysAgo.getDate() - 14);
+      fourteenDaysAgo.setHours(0, 0, 0, 0);
+
+      const dailyAgg = await salesCol.aggregate([
+        { $match: { createdAt: { $gte: fourteenDaysAgo } } },
+        {
+          $group: {
+            _id: {
+              year: { $year: '$createdAt' },
+              month: { $month: '$createdAt' },
+              day: { $dayOfMonth: '$createdAt' },
+            },
+            total: { $sum: '$totalAmount' },
+          },
+        },
+        { $sort: { '_id.year': 1, '_id.month': 1, '_id.day': 1 } },
+      ]).toArray();
+
+      revenueData = dailyAgg.map(d => ({
+        label: `${d._id.day} ${monthNames[d._id.month - 1]}`,
+        total: d.total,
+      }));
+    } else if (period === 'weekly') {
+      // Last 12 weeks
+      const twelveWeeksAgo = new Date();
+      twelveWeeksAgo.setDate(twelveWeeksAgo.getDate() - (12 * 7));
+      twelveWeeksAgo.setHours(0, 0, 0, 0);
+
+      const weeklyAgg = await salesCol.aggregate([
+        { $match: { createdAt: { $gte: twelveWeeksAgo } } },
+        {
+          $group: {
+            _id: {
+              year: { $year: '$createdAt' },
+              week: { $week: '$createdAt' },
+            },
+            total: { $sum: '$totalAmount' },
+          },
+        },
+        { $sort: { '_id.year': 1, '_id.week': 1 } },
+      ]).toArray();
+
+      revenueData = weeklyAgg.map(w => ({
+        label: `Wk ${w._id.week}, ${w._id.year}`,
+        total: w.total,
+      }));
+    } else {
+      // Monthly (Default) - Last 6 months
+      const sixMonthsAgo = new Date();
+      sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+      sixMonthsAgo.setHours(0, 0, 0, 0);
+
+      const monthlyAgg = await salesCol.aggregate([
+        { $match: { createdAt: { $gte: sixMonthsAgo } } },
+        {
+          $group: {
+            _id: {
+              year: { $year: '$createdAt' },
+              month: { $month: '$createdAt' },
+            },
+            total: { $sum: '$totalAmount' },
+          },
+        },
+        { $sort: { '_id.year': 1, '_id.month': 1 } },
+      ]).toArray();
+
+      revenueData = monthlyAgg.map(m => ({
+        label: `${monthNames[m._id.month - 1]} ${m._id.year}`,
+        total: m.total,
+      }));
+    }
 
     // Category breakdown
     const categoryBreakdown = await productsCol.aggregate([
@@ -96,7 +153,7 @@ async function dashboardHandler(req, res) {
       todaySales,
       monthlyRevenue,
       lowStockProducts,
-      revenueByMonth: formattedRevenue,
+      revenueByMonth: revenueData, // Keep key name for compat or rename later
       categoryBreakdown: categoryBreakdown.map(c => ({
         category: c._id || 'Uncategorized',
         count: c.count,

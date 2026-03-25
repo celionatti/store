@@ -37,6 +37,10 @@ async function productIdHandler(req, res) {
     }
 
     if (req.method === 'PUT') {
+      if (req.user.role !== 'admin') {
+        return res.status(403).json({ error: 'Forbidden: Admin access required' });
+      }
+
       let body = req.body;
       if (typeof body === 'string') {
         try { body = JSON.parse(body); } catch (e) { body = {}; }
@@ -77,6 +81,7 @@ async function productIdHandler(req, res) {
           sellingPrice: parseFloat(body.sellingPrice) || 0,
           quantity: parseInt(body.quantity) || 0,
           reorderLevel: parseInt(body.reorderLevel) || 10,
+          supplierId: body.supplierId || null,
           updatedAt: new Date(),
         },
       };
@@ -92,6 +97,10 @@ async function productIdHandler(req, res) {
     }
 
     if (req.method === 'DELETE') {
+      if (req.user.role !== 'admin') {
+        return res.status(403).json({ error: 'Forbidden: Admin access required' });
+      }
+
       const result = await collection.deleteOne({ _id: objectId });
       if (result.deletedCount === 0) {
         return res.status(404).json({ error: 'Product not found' });

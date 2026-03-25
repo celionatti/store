@@ -14,11 +14,16 @@ async function logoutHandler(req, res) {
     const { db } = await connectToDatabase();
     const usersCol = db.collection('users');
 
-    // Revoke the token by clearing activeToken
-    // req.user is populated by withAuth
+    const authHeader = req.headers.authorization;
+    const token = authHeader.split(" ")[1];
+
+    // Revoke the specific token from activeTokens and also clear activeToken string
     await usersCol.updateOne(
       { username: req.user.username },
-      { $unset: { activeToken: "" } }
+      { 
+        $pull: { activeTokens: token },
+        $unset: { activeToken: "" } 
+      }
     );
 
     return res.status(200).json({ message: 'Logged out successfully' });

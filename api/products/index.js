@@ -13,7 +13,7 @@ async function productsHandler(req, res) {
     const collection = db.collection('products');
 
     if (req.method === 'GET') {
-      const { search, category } = req.query || {};
+      const { search, category, type } = req.query || {};
       const filter = {};
 
       if (search) {
@@ -25,6 +25,10 @@ async function productsHandler(req, res) {
       }
       if (category) {
         filter.category = { $regex: category, $options: 'i' };
+      }
+      
+      if (type === 'low-stock') {
+        filter.$expr = { $lte: ['$quantity', '$reorderLevel'] };
       }
 
       const products = await collection
@@ -70,6 +74,7 @@ async function productsHandler(req, res) {
         sellingPrice: parseFloat(body.sellingPrice) || 0,
         quantity: parseInt(body.quantity) || 0,
         reorderLevel: parseInt(body.reorderLevel) || 10,
+        supplierId: body.supplierId || null,
         createdAt: new Date(),
         updatedAt: new Date(),
       };

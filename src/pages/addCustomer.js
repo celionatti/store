@@ -4,10 +4,12 @@
 import { api } from '../api.js';
 import { showToast } from '../components/toast.js';
 
-export function renderAddCustomer(container) {
+export function renderAddCustomer(container, params = {}) {
+  const isEdit = !!params.id;
+  
   container.innerHTML = `
     <div class="page-header">
-      <h2>Add Customer</h2>
+      <h2>${isEdit ? 'Edit Customer' : 'Add Customer'}</h2>
       <a href="#/customers" class="btn btn-outline">Cancel</a>
     </div>
 
@@ -27,16 +29,37 @@ export function renderAddCustomer(container) {
             <label class="form-label" for="cust-phone">Phone Number</label>
             <input type="tel" id="cust-phone" class="form-input" placeholder="08012345678" />
           </div>
+          <div class="form-group" style="flex:1; min-width: 200px;">
+            <label class="form-label" for="cust-balance">Initial Balance (Credit/Debt)</label>
+            <input type="number" id="cust-balance" class="form-input" placeholder="0.00" step="0.01" />
+            <small class="text-muted">Use negative for debt, positive for credit.</small>
+          </div>
         </div>
 
         <div style="margin-top: var(--space-xl); display: flex; justify-content: flex-end;">
           <button type="submit" class="btn btn-primary" id="save-btn" style="min-width: 150px;">
-            Save Customer
+            ${isEdit ? 'Update Customer' : 'Save Customer'}
           </button>
         </div>
       </form>
     </div>
   `;
+
+  if (isEdit) {
+    loadCustomer(params.id);
+  }
+
+  async function loadCustomer(id) {
+    try {
+      const { customer } = await api.getCustomer(id);
+      document.getElementById('cust-name').value = customer.name;
+      document.getElementById('cust-email').value = customer.email || '';
+      document.getElementById('cust-phone').value = customer.phone || '';
+      document.getElementById('cust-balance').value = customer.balance || 0;
+    } catch (err) {
+      showToast(err.message || 'Failed to load customer', 'error');
+    }
+  }
 
   const form = document.getElementById('customer-form');
   const saveBtn = document.getElementById('save-btn');
@@ -44,17 +67,25 @@ export function renderAddCustomer(container) {
   form?.addEventListener('submit', async (e) => {
     e.preventDefault();
 
-    const name = document.getElementById('cust-name').value;
-    const email = document.getElementById('cust-email').value;
-    const phone = document.getElementById('cust-phone').value;
+    const payload = {
+      name: document.getElementById('cust-name').value,
+      email: document.getElementById('cust-email').value,
+      phone: document.getElementById('cust-phone').value,
+      balance: document.getElementById('cust-balance').value,
+    };
 
     const originalText = saveBtn.textContent;
-    saveBtn.textContent = 'Saving...';
+    saveBtn.textContent = isEdit ? 'Updating...' : 'Saving...';
     saveBtn.disabled = true;
 
     try {
-      await api.createCustomer({ name, email, phone });
-      showToast('Customer added successfully', 'success');
+      if (isEdit) {
+        await api.updateCustomer(params.id, payload);
+        showToast('Customer updated successfully', 'success');
+      } else {
+        await api.createCustomer(payload);
+        showToast('Customer added successfully', 'success');
+      }
       window.location.hash = '#/customers';
     } catch (err) {
       showToast(err.message || 'Failed to save customer', 'error');

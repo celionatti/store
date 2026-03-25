@@ -39,6 +39,10 @@ export function renderSettings(container) {
               <option value="GBP">GBP (£)</option>
             </select>
           </div>
+          <div class="form-group">
+            <label class="form-label" for="st-tax">Default Tax Rate (%)</label>
+            <input type="number" id="st-tax" class="form-input" placeholder="e.g. 7.5" step="0.01" min="0" />
+          </div>
         </div>
         <button type="submit" class="btn btn-primary mt-md" id="st-submit">
           Save Settings
@@ -51,6 +55,12 @@ export function renderSettings(container) {
       <p class="text-muted">Software Version: 1.2.0 (Accounting Update)</p>
       <p class="text-muted">Developed by: <strong>Celio Natti</strong></p>
       <p class="text-muted">System Status: <span class="badge badge-success">Online</span></p>
+      <div style="margin-top: var(--space-md); padding-top: var(--space-md); border-top: 1px solid var(--color-border);">
+        <button id="st-backup" class="btn btn-outline btn-sm">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16" style="margin-right: 4px;"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          Download Database Backup
+        </button>
+      </div>
     </div>
   `;
 
@@ -69,6 +79,7 @@ export function renderSettings(container) {
         shopAddress: document.getElementById('st-address').value,
         shopPhone: document.getElementById('st-phone').value,
         currency: document.getElementById('st-currency').value,
+        taxRate: document.getElementById('st-tax').value,
       };
 
       await api.updateSettings(payload);
@@ -76,11 +87,32 @@ export function renderSettings(container) {
       
       // Update local storage currency if it changed
       import('../utils/helpers.js').then(h => h.setCurrentCurrency(payload.currency));
+
+      // Update brand text across the UI immediately
+      if (payload.shopName) {
+        import('../utils/helpers.js').then(h => h.updateBrandName(payload.shopName));
+      }
       
     } catch (err) {
       showToast(err.message || 'Failed to save settings', 'error');
     } finally {
       btn.disabled = false;
+    }
+  });
+
+  document.getElementById('st-backup')?.addEventListener('click', async () => {
+    try {
+      const data = await api.getBackup();
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `store_backup_${new Date().toISOString().split('T')[0]}.json`;
+      link.click();
+      URL.revokeObjectURL(url);
+      showToast('Backup downloaded successfully', 'success');
+    } catch (err) {
+      showToast('Failed to download backup', 'error');
     }
   });
 
@@ -94,6 +126,7 @@ export function renderSettings(container) {
       document.getElementById('st-address').value = s.shopAddress || '';
       document.getElementById('st-phone').value = s.shopPhone || '';
       document.getElementById('st-currency').value = s.currency || 'NGN';
+      document.getElementById('st-tax').value = s.taxRate || 0;
       
     } catch (err) {
       showToast('Failed to load settings', 'error');

@@ -12,6 +12,13 @@ async function customersHandler(req, res) {
 
     // GET /api/customers
     if (req.method === 'GET') {
+      const { id } = req.query;
+      if (id) {
+        const { ObjectId } = require('mongodb');
+        const customer = await collection.findOne({ _id: new ObjectId(id) });
+        if (!customer) return res.status(404).json({ error: 'Customer not found' });
+        return res.status(200).json({ customer });
+      }
       const customers = await collection.find({}).sort({ createdAt: -1 }).toArray();
       return res.status(200).json({ customers });
     }
@@ -43,13 +50,43 @@ async function customersHandler(req, res) {
         name: body.name.trim(),
         email: (body.email || '').toLowerCase().trim(),
         phone: (body.phone || '').trim(),
-        totalSpent: 0, // Initial value
+        balance: parseFloat(body.balance) || 0,
+        totalSpent: 0, 
         createdAt: new Date(),
         updatedAt: new Date(),
       };
 
       const result = await collection.insertOne(customer);
       return res.status(201).json({ ...customer, _id: result.insertedId });
+    }
+
+    // PUT /api/customers
+    if (req.method === 'PUT') {
+      const { id } = req.query;
+      const body = req.body;
+      if (!id) return res.status(400).json({ error: 'Customer ID is required' });
+
+      const { ObjectId } = require('mongodb');
+      const update = {
+        updatedAt: new Date()
+      };
+
+      if (body.name) update.name = body.name.trim();
+      if (body.email) update.email = body.email.toLowerCase().trim();
+      if (body.phone) update.phone = body.phone.trim();
+      if (body.balance !== undefined) update.balance = parseFloat(body.balance) || 0;
+
+      const result = await collection.findOneAndUpdate(
+        { _id: new ObjectId(id) },
+        { $set: update },
+        { returnDocument: 'after' }
+      );
+
+      if (!result.value && !result) {
+        return res.status(404).json({ error: 'Customer not found' });
+      }
+
+      return res.status(200).json({ customer: result.value || result });
     }
 
     return res.status(405).json({ error: 'Method not allowed' });

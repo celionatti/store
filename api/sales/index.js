@@ -4,7 +4,7 @@
  */
 const { ObjectId } = require('mongodb');
 const { connectToDatabase } = require('../_utils/db');
-const { validateSale } = require('../_utils/validate');
+const { validateSale, validateCartSale } = require('../_utils/validate');
 const { withAuth } = require('../_utils/auth');
 const { logActivity } = require('../_utils/audit');
 
@@ -18,9 +18,14 @@ async function salesHandler(req, res) {
 
       if (from || to) {
         filter.createdAt = {};
-        if (from) filter.createdAt.$gte = new Date(from);
+        if (from) {
+          const fromDate = new Date(from);
+          if (isNaN(fromDate.getTime())) return res.status(400).json({ error: 'Invalid "from" date format' });
+          filter.createdAt.$gte = fromDate;
+        }
         if (to) {
           const toDate = new Date(to);
+          if (isNaN(toDate.getTime())) return res.status(400).json({ error: 'Invalid "to" date format' });
           toDate.setHours(23, 59, 59, 999);
           filter.createdAt.$lte = toDate;
         }
@@ -37,53 +42,117 @@ async function salesHandler(req, res) {
 
     if (req.method === 'POST') {
       const body = req.body;
-      const errors = validateSale(body);
-      if (errors.length > 0) {
-        return res.status(400).json({ error: errors.join(', ') });
+
+      // Support both legacy single-item and new multi-item cart
+      const items = body.items || [body];
+      const isCart = Array.isArray(body.items);
+
+      if (isCart) {
+        const errors = validateCartSale(body);
+        if (errors.length > 0) {
+          return res.status(400).json({ error: errors.join(', ') });
+        }
+      } else {
+        const errors = validateSale(body);
+        if (errors.length > 0) {
+          return res.status(400).json({ error: errors.join(', ') });
+        }
       }
 
-      const sale = {
-        productId: body.productId,
-        productName: body.productName || '',
-        quantity: parseInt(body.quantity),
-        soldItemBarcode: body.soldItemBarcode ? body.soldItemBarcode.trim() : null,
-        unitPrice: parseFloat(body.unitPrice) || 0,
-        costPrice: parseFloat(body.costPrice) || 0,
-        totalAmount: parseFloat(body.totalAmount) || 0,
-        profit: parseFloat(body.profit) || 0,
-        createdAt: new Date(),
-      };
+      const transactionId = new ObjectId().toString();
+      const now = new Date();
+      const saleRecords = [];
+      const customerId = body.customerId;
+      const customerName = body.customerName;
 
-      // Insert sale
-      await db.collection('sales').insertOne(sale);
+      // Fetch settings for tax calculation
+      const settings = await db.collection('settings').findOne({ type: 'global' });
+      const taxRate = settings?.taxRate || 0;
 
-      await logActivity(req.user, 'SALE_RECORDED', `Sold ${sale.quantity}x ${sale.productName}${sale.soldItemBarcode ? ` (IMEI: ${sale.soldItemBarcode})` : ''} for ${sale.totalAmount}`);
+      let totalTransactionAmount = 0;
 
-      const productUpdate = {
-        $inc: { quantity: -sale.quantity },
-        $set: { updatedAt: new Date() },
-      };
+      for (const item of items) {
+        const itemTotal = parseFloat(item.totalAmount) || (parseFloat(item.unitPrice) * parseInt(item.quantity));
+        const taxAmount = (itemTotal * taxRate) / 100;
+        const subtotalWithTax = itemTotal + taxAmount;
+        
+        const sale = {
+          transactionId,
+          productId: item.productId,
+          productName: item.productName || '',
+          quantity: parseInt(item.quantity),
+          soldItemBarcode: item.soldItemBarcode ? item.soldItemBarcode.trim() : null,
+          unitPrice: parseFloat(item.unitPrice) || 0,
+          costPrice: parseFloat(item.costPrice) || 0,
+          totalAmount: subtotalWithTax,
+          taxAmount: taxAmount,
+          profit: parseFloat(item.profit) || ((parseFloat(item.unitPrice) - parseFloat(item.costPrice)) * parseInt(item.quantity)),
+          customerId: customerId ? new ObjectId(customerId) : null,
+          customerName: customerName || null,
+          createdAt: now,
+        };
 
-      if (sale.soldItemBarcode) {
-        productUpdate.$pull = { itemBarcodes: sale.soldItemBarcode };
+        await db.collection('sales').insertOne(sale);
+
+        const productUpdate = {
+          $inc: { quantity: -sale.quantity },
+          $set: { updatedAt: now },
+        };
+
+        if (sale.soldItemBarcode) {
+          productUpdate.$pull = { itemBarcodes: sale.soldItemBarcode };
+        }
+
+        await db.collection('products').updateOne(
+          { _id: new ObjectId(item.productId) },
+          productUpdate
+        );
+
+        saleRecords.push(sale);
+        totalTransactionAmount += subtotalWithTax;
       }
 
-      // Decrement product quantity and optionally remove specific IMEI
-      await db.collection('products').updateOne(
-        { _id: new ObjectId(body.productId) },
-        productUpdate
-      );
+      // Update customer totalSpent and balance if customerId is provided
+      if (customerId) {
+        await db.collection('customers').updateOne(
+          { _id: new ObjectId(customerId) },
+          { 
+            $inc: { 
+              totalSpent: totalTransactionAmount,
+              balance: -totalTransactionAmount 
+            },
+            $set: { updatedAt: now }
+          }
+        );
+      }
 
-      return res.status(201).json({ message: 'Sale recorded', sale });
+      const itemsSummary = saleRecords.map(s => `${s.quantity}x ${s.productName}`).join(', ');
+      await logActivity(req.user, 'SALE_RECORDED', `Transaction ${transactionId}${customerName ? ` for ${customerName}` : ''}: ${itemsSummary} — Total: ${totalTransactionAmount}`);
+
+      return res.status(201).json({
+        message: 'Sale recorded',
+        transactionId,
+        sale: saleRecords.length === 1 ? saleRecords[0] : undefined,
+        sales: saleRecords,
+        totalAmount: totalTransactionAmount,
+      });
     }
 
     if (req.method === 'DELETE') {
+      if (req.user.role !== 'admin') {
+        return res.status(403).json({ error: 'Forbidden: Admin access required' });
+      }
+
       const { before } = req.query;
       if (!before) {
         return res.status(400).json({ error: 'Missing before date parameter for bulk deletion.' });
       }
 
       const beforeDate = new Date(before);
+      if (isNaN(beforeDate.getTime())) {
+        return res.status(400).json({ error: 'Invalid "before" date format' });
+      }
+
       const result = await db.collection('sales').deleteMany({
         createdAt: { $lt: beforeDate }
       });

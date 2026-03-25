@@ -8,11 +8,15 @@ export function showModal(title, message, onConfirm) {
   if (!overlay || !modal) return;
 
   modal.innerHTML = `
-    <h3>${title}</h3>
-    <p>${message}</p>
+    <div class="modal-header">
+      <h3>${title}</h3>
+    </div>
+    <div class="modal-body">
+      ${message.startsWith('<') ? message : `<p>${message}</p>`}
+    </div>
     <div class="modal-actions">
       <button class="btn btn-outline" id="modal-cancel">Cancel</button>
-      <button class="btn btn-danger" id="modal-confirm">Confirm</button>
+      <button class="btn btn-primary" id="modal-confirm">Confirm</button>
     </div>
   `;
 

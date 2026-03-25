@@ -10,10 +10,13 @@ app.use(express.json());
 
 // Mock Vercel serverless environment
 app.all('/api/{*path}', async (req, res) => {
+  console.log(`[API Debug] Method: ${req.method}, URL: ${req.url}, Params: ${JSON.stringify(req.params)}`);
+  
   // Express v5: req.params.path is an array of segments for {*path} wildcard
   const rawPath = Array.isArray(req.params.path)
     ? req.params.path.join('/')
     : (req.params.path || '');
+  console.log(`[API Debug] rawPath: ${rawPath}`);
   const apiPath = '/' + rawPath.split('?')[0]; 
   
   // Try to find the file in the api folder
@@ -69,8 +72,10 @@ app.all('/api/{*path}', async (req, res) => {
 
       // Call handler directly with native Express req and res
       await handler(req, res);
+      console.log(`[API Success] ${req.method} ${req.url} handled successfully`);
     } catch (err) {
-      console.error(`[API Error] ${err.message}`);
+      console.error(`[API Error] Request: ${req.method} ${req.url}`);
+      console.error(`[API Error] Stack Trace: ${err.stack}`);
       res.status(500).json({ error: 'Internal Server Error', details: err.message });
     }
   } else {
@@ -83,7 +88,8 @@ const server = app.listen(PORT, () => {
   console.log(`[API Server] Running at http://localhost:${PORT}`);
 }).on('error', (err) => {
   if (err.code === 'EADDRINUSE') {
-    console.error(`[API Error] Port ${PORT} is already in use. Please kill the existing process first.`);
+    console.error(`[API Error] CRITICAL: Port ${PORT} is already in use.`);
+    console.error(`[API Error] SUGGESTION: Run 'netstat -ano | findstr :${PORT}' and kill the process using 'taskkill /F /PID <pid>'.`);
     process.exit(1);
   } else {
     console.error(`[API Error] Failed to start server: ${err.message}`);

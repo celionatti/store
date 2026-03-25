@@ -50,4 +50,30 @@ function validateSale(body) {
   return errors;
 }
 
-module.exports = { validateProduct, validateStockEntry, validateSale };
+function validateCartSale(body) {
+  const errors = [];
+  if (!body) return ['Request body is missing'];
+  if (!Array.isArray(body.items) || body.items.length === 0) {
+    return ['At least one item is required'];
+  }
+  body.items.forEach((item, i) => {
+    if (!item.productId) errors.push(`Item ${i + 1}: Product ID is required`);
+    if (!item.quantity || isNaN(item.quantity) || item.quantity <= 0) errors.push(`Item ${i + 1}: Quantity must be positive`);
+    if (item.unitPrice == null || isNaN(item.unitPrice) || item.unitPrice < 0) errors.push(`Item ${i + 1}: Unit price must be non-negative`);
+  });
+  return errors;
+}
+
+function validateSupplier(body) {
+  const errors = [];
+  if (!body) return ['Request body is missing'];
+  if (!body.name || typeof body.name !== 'string' || !body.name.trim()) {
+    errors.push('Supplier name is required');
+  }
+  if (body.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(body.email)) {
+    errors.push('Invalid email format');
+  }
+  return errors;
+}
+
+module.exports = { validateProduct, validateStockEntry, validateSale, validateCartSale, validateSupplier };

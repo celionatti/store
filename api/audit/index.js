@@ -33,6 +33,10 @@ async function auditHandler(req, res) {
       }
 
       const beforeDate = new Date(before);
+      if (isNaN(beforeDate.getTime())) {
+        return res.status(400).json({ error: 'Invalid "before" date format' });
+      }
+
       const result = await logsCol.deleteMany({
         timestamp: { $lt: beforeDate }
       });

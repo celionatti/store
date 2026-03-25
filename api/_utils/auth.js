@@ -4,20 +4,13 @@
  * Extracts token from Authorization header and verifies it against the DB.
  * Ensures the user exists and has a matching active token.
  */
-const { connectToDatabase } = require("./db");
+const { connectToDatabase } = require('./db');
+const { applyCorsHeaders } = require('./cors');
 
 function withAuth(handler) {
   return async (req, res) => {
     // CORS headers (often needed for cross-origin local dev)
-    res.setHeader("Access-Control-Allow-Origin", "*");
-    res.setHeader(
-      "Access-Control-Allow-Methods",
-      "GET, POST, PUT, DELETE, OPTIONS",
-    );
-    res.setHeader(
-      "Access-Control-Allow-Headers",
-      "Content-Type, Authorization",
-    );
+    applyCorsHeaders(req, res);
 
     if (req.method === "OPTIONS") {
       return res.status(204).end();
@@ -35,8 +28,13 @@ function withAuth(handler) {
       const { db } = await connectToDatabase();
       const usersCol = db.collection("users");
 
-      // Find user with this specific active token
-      const user = await usersCol.findOne({ activeToken: token });
+      // Find user with this specific active token (supports both old string and new array format)
+      const user = await usersCol.findOne({ 
+        $or: [
+          { activeTokens: token },
+          { activeToken: token }
+        ]
+      });
 
       if (!user) {
         return res

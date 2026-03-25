@@ -15,6 +15,16 @@ export function renderAuditLogs(container) {
   container.innerHTML = `
     <div class="page-header">
       <h2>Activity History</h2>
+      <div class="flex gap-sm">
+        <select id="al-filter-action" class="form-select" style="max-width: 180px;">
+          <option value="">All Actions</option>
+          <option value="SALE">Sales</option>
+          <option value="CREATE">Creation</option>
+          <option value="UPDATE">Updates</option>
+          <option value="DELETE">Deletions</option>
+          <option value="LOGIN">Logins</option>
+        </select>
+      </div>
     </div>
     <div class="card mb-lg" style="background: var(--color-danger-bg); border-color: rgba(239, 68, 68, 0.2);">
       <h3 style="margin-bottom: var(--space-md); color: var(--color-danger);">Database Cleanup</h3>
@@ -67,6 +77,12 @@ export function renderAuditLogs(container) {
     );
   });
 
+  const filterSelect = document.getElementById('al-filter-action');
+  filterSelect?.addEventListener('change', () => {
+    currentPage = 1;
+    renderTable();
+  });
+
   async function loadLogs() {
     try {
       const data = await api.getAuditLogs();
@@ -85,13 +101,18 @@ export function renderAuditLogs(container) {
     const wrapper = document.getElementById('audit-logs-content');
     if (!wrapper) return;
 
-    if (logs.length === 0) {
-      wrapper.innerHTML = '<div class="empty-state"><p>No activity logs found.</p></div>';
+    const actionFilter = document.getElementById('al-filter-action')?.value || '';
+    const filteredLogs = actionFilter 
+      ? logs.filter(l => l.action.includes(actionFilter))
+      : logs;
+
+    if (filteredLogs.length === 0) {
+      wrapper.innerHTML = '<div class="empty-state"><p>No activity logs match your filter.</p></div>';
       return;
     }
 
     const start = (currentPage - 1) * logsPerPage;
-    const paginated = logs.slice(start, start + logsPerPage);
+    const paginated = filteredLogs.slice(start, start + logsPerPage);
 
     wrapper.innerHTML = `
       <div class="table-wrapper">
@@ -121,7 +142,7 @@ export function renderAuditLogs(container) {
 
     renderPagination(
       document.getElementById('audit-pagination'),
-      logs.length,
+      filteredLogs.length,
       currentPage,
       logsPerPage,
       (newPage) => {

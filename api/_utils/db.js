@@ -13,17 +13,28 @@ async function connectToDatabase() {
 
   const uri = process.env.MONGODB_URI;
   if (!uri) {
+    console.error('[DB Error] MONGODB_URI is not defined in environment variables');
     throw new Error('MONGODB_URI environment variable is not set');
   }
 
-  const client = new MongoClient(uri);
-  await client.connect();
+  const client = new MongoClient(uri, {
+    serverSelectionTimeoutMS: 5000,
+    connectTimeoutMS: 5000,
+  });
 
-  const db = client.db('store-inventory');
-  cachedClient = client;
-  cachedDb = db;
-
-  return { client, db };
+  try {
+    const maskedUri = uri.replace(/\/\/.*:.*@/, '//****:****@');
+    console.log(`[DB] Connecting to MongoDB (URI: ${maskedUri})...`);
+    await client.connect();
+    const db = client.db('store-inventory');
+    cachedClient = client;
+    cachedDb = db;
+    console.log(`[DB] Successfully connected to database: store-inventory`);
+    return { client: cachedClient, db: cachedDb };
+  } catch (err) {
+    console.error(`[DB Error] Failed to connect to MongoDB: ${err.message}`);
+    throw err;
+  }
 }
 
 module.exports = { connectToDatabase };

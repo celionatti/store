@@ -58,6 +58,9 @@ export function renderReports(container) {
 
   let currentSales = [];
 
+  let profitChart = null;
+  let categoryChartInner = null;
+
   // Load initial report
   loadReport(fromStr, toStr);
 
@@ -85,17 +88,30 @@ export function renderReports(container) {
     if (!data || data.length === 0) return;
     
     const headers = ['Date', 'Product', 'Quantity', 'Unit Price', 'Cost Price', 'Total', 'Profit'].map(escapeCSV);
-    const rows = data.map(s => [
-      escapeCSV(new Date(s.createdAt).toLocaleDateString()),
-      escapeCSV(s.productName),
-      escapeCSV(s.quantity),
-      escapeCSV(s.unitPrice),
-      escapeCSV(s.costPrice),
-      escapeCSV(s.totalAmount),
-      escapeCSV(s.profit)
-    ]);
+    const rows = data.map((s, i) => {
+      const rowNum = i + 2; // Rows are 1-indexed, header is row 1
+      return [
+        escapeCSV(new Date(s.createdAt).toLocaleDateString()),
+        escapeCSV(s.productName),
+        escapeCSV(s.quantity),
+        escapeCSV(s.unitPrice),
+        escapeCSV(s.costPrice),
+        escapeCSV(`=C${rowNum}*D${rowNum}`), // Total
+        escapeCSV(`=F${rowNum}-(C${rowNum}*E${rowNum})`) // Profit
+      ];
+    });
 
-    const csvContent = [headers, ...rows].map(e => e.join(',')).join('\n');
+    const lastDataRow = rows.length + 1;
+    const summaryRow = [
+      escapeCSV('TOTALS'),
+      '', 
+      escapeCSV(`=SUM(C2:C${lastDataRow})`),
+      '', '',
+      escapeCSV(`=SUM(F2:F${lastDataRow})`),
+      escapeCSV(`=SUM(G2:G${lastDataRow})`)
+    ];
+
+    const csvContent = [headers, ...rows, summaryRow].map(e => e.join(',')).join('\n');
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
     const url = URL.createObjectURL(blob);
@@ -156,34 +172,35 @@ export function renderReports(container) {
         `;
       }
 
+      // Render Charts
+      renderCharts(sales, expenses);
+
       // Top products
       const topList = Object.values(productSales)
         .sort((a, b) => b.revenue - a.revenue)
         .slice(0, 10);
 
-      const topEl = document.getElementById('top-products');
-      if (topEl) {
+      const topProductsEl = document.getElementById('top-products');
+      if (topProductsEl) {
         if (topList.length === 0) {
-          topEl.innerHTML = '<div class="empty-state"><p>No sales data for this period.</p></div>';
+          topProductsEl.innerHTML = '<div class="empty-state"><p>No sales grouped by product found.</p></div>';
         } else {
-          topEl.innerHTML = `
+          topProductsEl.innerHTML = `
             <div class="table-wrapper">
               <table>
                 <thead>
                   <tr>
-                    <th>#</th>
                     <th>Product</th>
                     <th>Units Sold</th>
                     <th>Revenue</th>
                   </tr>
                 </thead>
                 <tbody>
-                  ${topList.map((p, i) => `
+                  ${topList.map(p => `
                     <tr>
-                      <td class="text-muted">${i + 1}</td>
-                      <td><strong>${escapeHtml(p.name)}</strong></td>
-                      <td>${p.quantity}</td>
-                      <td class="font-bold">${formatCurrency(p.revenue)}</td>
+                      <td data-label="Product"><strong>${escapeHtml(p.name)}</strong></td>
+                      <td data-label="Units Sold">${p.quantity}</td>
+                      <td data-label="Revenue" class="text-success font-bold">${formatCurrency(p.revenue)}</td>
                     </tr>
                   `).join('')}
                 </tbody>
@@ -196,4 +213,74 @@ export function renderReports(container) {
       showToast(err.message || 'Failed to load report', 'error');
     }
   }
+
+  function renderCharts(sales, expenses) {
+    if (profitChart) profitChart.destroy();
+    if (categoryChartInner) categoryChartInner.destroy();
+
+    const ptCtx = document.getElementById('profit-trend-chart');
+    const ctCtx = document.getElementById('category-dist-chart');
+
+    if (ptCtx) {
+      // Group sales by day
+      const dailyData = {};
+      sales.forEach(s => {
+        const day = new Date(s.createdAt).toLocaleDateString();
+        dailyData[day] = (dailyData[day] || 0) + (s.profit || 0);
+      });
+      const sortedDays = Object.keys(dailyData).sort((a, b) => new Date(a) - new Date(b));
+
+      profitChart = new Chart(ptCtx, {
+        type: 'line',
+        data: {
+          labels: sortedDays,
+          datasets: [{
+            label: 'Profit',
+            data: sortedDays.map(d => dailyData[d]),
+            borderColor: '#6366f1',
+            backgroundColor: 'rgba(99, 102, 241, 0.1)',
+            fill: true,
+            tension: 0.4
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { legend: { display: false } },
+          scales: {
+            y: { beginAtZero: true, ticks: { callback: v => '$' + v } }
+          }
+        }
+      });
+    }
+
+    if (ctCtx) {
+      const catData = {};
+      sales.forEach(s => {
+        const cat = s.category || 'General';
+        catData[cat] = (catData[cat] || 0) + (s.totalAmount || 0);
+      });
+
+      categoryChartInner = new Chart(ctCtx, {
+        type: 'doughnut',
+        data: {
+          labels: Object.keys(catData),
+          datasets: [{
+            data: Object.values(catData),
+            backgroundColor: ['#6366f1', '#10b981', '#f59e0b', '#ef4444', '#3b82f6', '#8b5cf6']
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { legend: { position: 'bottom' } }
+        }
+      });
+    }
+  }
+
+  return () => {
+    if (profitChart) profitChart.destroy();
+    if (categoryChartInner) categoryChartInner.destroy();
+  };
 }

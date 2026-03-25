@@ -25,20 +25,38 @@ async function request(endpoint, options = {}) {
     config.body = JSON.stringify(config.body);
   }
 
-  const res = await fetch(url, config);
-  const data = await res.json().catch(() => null);
+  try {
+    const res = await fetch(url, config);
+    
+    // Server is up and responding
+    window.dispatchEvent(new CustomEvent('server-status', { detail: { online: true } }));
 
-  if (!res.ok) {
-    if (res.status === 401) {
-      localStorage.removeItem('store_auth');
-      localStorage.removeItem('store_user');
-      window.location.hash = '#/login';
+    const data = await res.json().catch(() => null);
+
+    if (!res.ok) {
+      if (res.status === 401) {
+        localStorage.removeItem('store_auth');
+        localStorage.removeItem('store_user');
+        window.location.hash = '#/login';
+      }
+      const message = data?.error || data?.message || `Request failed (${res.status})`;
+      throw new Error(message);
     }
-    const message = data?.error || data?.message || `Request failed (${res.status})`;
-    throw new Error(message);
-  }
 
-  return data;
+    return data;
+  } catch (err) {
+    // Detect connection errors (server down, network issues)
+    if (err instanceof TypeError || err.message === 'Failed to fetch' || err.code === 'ECONNREFUSED') {
+      window.dispatchEvent(new CustomEvent('server-status', { 
+        detail: { 
+          online: false, 
+          message: 'The server is unreachable. Please check if it is started or contact support.' 
+        } 
+      }));
+      throw new Error('Server connection failed. Please ensure the backend server is running.');
+    }
+    throw err;
+  }
 }
 
 export const api = {
@@ -60,7 +78,9 @@ export const api = {
 
   // Customers
   getCustomers: () => request('/customers'),
+  getCustomer: (id) => request(`/customers?id=${id}`),
   createCustomer: (data) => request('/customers', { method: 'POST', body: data }),
+  updateCustomer: (id, data) => request(`/customers?id=${id}`, { method: 'PUT', body: data }),
 
   // Workers
   getWorkers: () => request('/workers'),
@@ -75,11 +95,19 @@ export const api = {
     return request(`/sales${qs ? `?${qs}` : ''}`);
   },
   createSale: (data) => request('/sales', { method: 'POST', body: data }),
+  createCartSale: (data) => request('/sales', { method: 'POST', body: data }),
   deleteSale: (id) => request(`/sales/${id}`, { method: 'DELETE' }),
   bulkDeleteSales: (before) => request(`/sales?before=${encodeURIComponent(before)}`, { method: 'DELETE' }),
+  reportSale: (id, reason) => request('/sales/report', { method: 'POST', body: { id, reason } }),
+  rejectSaleReport: (id) => request('/sales/reject-report', { method: 'POST', body: { id } }),
 
   // Dashboard
-  getDashboard: () => request('/dashboard'),
+  getDashboard: (period = '') => request(`/dashboard${period ? `?period=${period}` : ''}`),
+
+  // Categories
+  getCategories: () => request('/categories'),
+  createCategory: (data) => request('/categories', { method: 'POST', body: data }),
+  deleteCategory: (id) => request(`/categories?id=${id}`, { method: 'DELETE' }),
 
   // Audit Logs
   getAuditLogs: () => request('/audit'),
@@ -99,4 +127,18 @@ export const api = {
   // Settings
   getSettings: () => request('/settings'),
   updateSettings: (data) => request('/settings', { method: 'PUT', body: data }),
+  getBackup: () => request('/settings/backup'),
+
+  // Suppliers
+  getSuppliers: (search = '') => request(`/suppliers${search ? `?search=${encodeURIComponent(search)}` : ''}`),
+  getSupplier: (id) => request(`/suppliers/${id}`),
+  createSupplier: (data) => request('/suppliers', { method: 'POST', body: data }),
+  updateSupplier: (id, data) => request(`/suppliers/${id}`, { method: 'PUT', body: data }),
+  deleteSupplier: (id) => request(`/suppliers/${id}`, { method: 'DELETE' }),
+
+  // Stock Intelligence
+  getStockAlerts: () => request('/stock/alerts'),
+
+  // Bulk Operations
+  importProducts: (products) => request('/products/import', { method: 'POST', body: { products } }),
 };
