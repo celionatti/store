@@ -141,4 +141,9 @@ export const api = {
 
   // Bulk Operations
   importProducts: (products) => request('/products/import', { method: 'POST', body: { products } }),
+
+  // Notifications
+  getNotifications: () => request('/notifications'),
+  markNotificationRead: (id) => request('/notifications', { method: 'PUT', body: { id } }),
+  deleteNotification: (id) => request(`/notifications?id=${id}`, { method: 'DELETE' }),
 };

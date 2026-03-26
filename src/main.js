@@ -26,6 +26,7 @@ import { renderAuditLogs } from './pages/auditLogs.js';
 import { renderCategories } from './pages/categories.js';
 import { renderCustomerHistory } from './pages/customerHistory.js';
 import { initServerStatus } from './components/ServerStatus.js';
+import { initNotifications } from './components/notifications.js';
 
 import { getTheme, setTheme, toggleTheme } from './utils/helpers.js';
 
@@ -40,6 +41,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   renderSidebar();
   renderBottomNav();
   initServerStatus();
+  initNotifications();
   
   // Sync global settings
   try {

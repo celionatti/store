@@ -89,9 +89,8 @@ export function renderSales(container, params = {}) {
         <div class="form-group">
           <label class="form-label" for="cart-customer">Assign to Customer (Optional)</label>
           <div class="flex gap-sm">
-            <select id="cart-customer" class="form-select" style="flex: 1;">
-              <option value="">Walk-in Customer</option>
-            </select>
+            <input type="text" id="cart-customer" class="form-input" list="customer-list" placeholder="Walk-in Customer" autocomplete="off" style="flex: 1;">
+            <datalist id="customer-list"></datalist>
             <a href="#/customers/new" class="btn btn-icon" title="Add New Customer">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
             </a>
@@ -123,6 +122,7 @@ export function renderSales(container, params = {}) {
   `;
 
   let productsMap = {};
+  let customersList = [];
   let currentSalesPage = 1;
   const salesPerPage = 10;
   let shopSettings = {};
@@ -337,9 +337,21 @@ export function renderSales(container, params = {}) {
     btn.disabled = true;
     btn.textContent = 'Processing…';
 
-    const customerSelect = document.getElementById('cart-customer');
-    const customerId = customerSelect?.value || null;
-    const customerName = customerId ? customerSelect.options[customerSelect.selectedIndex]?.text : 'Walk-in Customer';
+    const customerInput = document.getElementById('cart-customer');
+    const typedName = customerInput?.value.trim();
+    
+    let customerId = null;
+    let customerName = 'Walk-in Customer';
+
+    if (typedName) {
+      const matched = customersList.find(c => c.name.toLowerCase() === typedName.toLowerCase());
+      if (matched) {
+        customerId = matched._id;
+        customerName = matched.name;
+      } else {
+        customerName = typedName;
+      }
+    }
 
     try {
       const res = await api.createCartSale({
@@ -434,16 +446,11 @@ export function renderSales(container, params = {}) {
   async function loadCustomerOptions() {
     try {
       const data = await api.getCustomers();
-      const customers = data.customers || data || [];
-      const select = document.getElementById('cart-customer');
-      if (!select) return;
+      customersList = data.customers || data || [];
+      const datalist = document.getElementById('customer-list');
+      if (!datalist) return;
       
-      // Preserve existing selection if possible (though unlikely to change often)
-      const currentVal = select.value;
-      select.innerHTML = '<option value="">Walk-in Customer</option>' +
-        customers.map(c => `<option value="${c._id}">${escapeHtml(c.name)}</option>`).join('');
-      
-      if (currentVal) select.value = currentVal;
+      datalist.innerHTML = customersList.map(c => `<option value="${escapeHtml(c.name)}"></option>`).join('');
     } catch (err) {
       console.warn('Failed to load customers for cart:', err);
     }

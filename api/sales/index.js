@@ -130,6 +130,16 @@ async function salesHandler(req, res) {
       const itemsSummary = saleRecords.map(s => `${s.quantity}x ${s.productName}`).join(', ');
       await logActivity(req.user, 'SALE_RECORDED', `Transaction ${transactionId}${customerName ? ` for ${customerName}` : ''}: ${itemsSummary} — Total: ${totalTransactionAmount}`);
 
+      // Create admin notification
+      await db.collection('notifications').insertOne({
+        type: 'sale',
+        message: `New sale of ${totalTransactionAmount} recorded by ${req.user?.name || 'Admin'}`,
+        transactionId,
+        readBy: [],
+        targetRole: 'admin',
+        createdAt: now,
+      });
+
       return res.status(201).json({
         message: 'Sale recorded',
         transactionId,
