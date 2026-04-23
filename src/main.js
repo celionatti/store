@@ -24,9 +24,11 @@ import { renderStockAlerts } from './pages/stockAlerts.js';
 import { renderBulkImport } from './pages/bulkImport.js';
 import { renderAuditLogs } from './pages/auditLogs.js';
 import { renderCategories } from './pages/categories.js';
+import { renderLocations } from './pages/locations.js';
 import { renderCustomerHistory } from './pages/customerHistory.js';
 import { initServerStatus } from './components/ServerStatus.js';
 import { initNotifications } from './components/notifications.js';
+import { initStoreSwitcher } from './components/StoreSwitcher.js';
 
 import { getTheme, setTheme, toggleTheme } from './utils/helpers.js';
 
@@ -38,10 +40,16 @@ import { api } from './api.js';
 
 // Initialize sidebar, bottom navigation and theme
 document.addEventListener('DOMContentLoaded', async () => {
+  const user = (await import('./pages/login.js')).getUser();
+  if (user && user.role !== 'admin' && user.locationId) {
+    localStorage.setItem('active_location_id', user.locationId);
+  }
+
   renderSidebar();
   renderBottomNav();
   initServerStatus();
   initNotifications();
+  initStoreSwitcher();
   
   // Sync global settings
   try {
@@ -87,25 +95,26 @@ function updateThemeUI(theme) {
 
 // Initialize router
 const router = new Router([
-  { path: '/',               title: 'Dashboard',    render: renderDashboard, requiresAuth: true, allowedRoles: ['admin'] },
-  { path: '/products',       title: 'Products',     render: renderProducts,  requiresAuth: true, allowedRoles: ['admin'] },
-  { path: '/products/new',   title: 'Add Product',  render: renderAddProduct, requiresAuth: true, allowedRoles: ['admin'] },
-  { path: '/products/edit/:id', title: 'Edit Product', render: renderAddProduct, requiresAuth: true, allowedRoles: ['admin'] },
-  { path: '/stock',          title: 'Stock Entry',  render: renderStockEntry, requiresAuth: true, allowedRoles: ['admin'] },
-  { path: '/sales',          title: 'Sales',        render: renderSales,     requiresAuth: true, allowedRoles: ['admin', 'worker'] },
-  { path: '/reports',        title: 'Reports',      render: renderReports,   requiresAuth: true, allowedRoles: ['admin'] },
-  { path: '/scanner',        title: 'Scanner',      render: renderScanner,   requiresAuth: true, allowedRoles: ['admin', 'worker'] },
-  { path: '/customers',      title: 'Customers',    render: renderCustomers, requiresAuth: true, allowedRoles: ['admin', 'worker'] },
-  { path: '/customers/new',  title: 'Add Customer', render: renderAddCustomer, requiresAuth: true, allowedRoles: ['admin', 'worker'] },
-  { path: '/customers/edit/:id', title: 'Edit Customer', render: renderAddCustomer, requiresAuth: true, allowedRoles: ['admin', 'worker'] },
-  { path: '/customers/history/:id', title: 'Customer History', render: renderCustomerHistory, requiresAuth: true, allowedRoles: ['admin', 'worker'] },
+  { path: '/',               title: 'Dashboard',    render: renderDashboard, requiresAuth: true, allowedRoles: ['admin', 'manager'] },
+  { path: '/products',       title: 'Products',     render: renderProducts,  requiresAuth: true, allowedRoles: ['admin', 'manager'] },
+  { path: '/products/new',   title: 'Add Product',  render: renderAddProduct, requiresAuth: true, allowedRoles: ['admin', 'manager'] },
+  { path: '/products/edit/:id', title: 'Edit Product', render: renderAddProduct, requiresAuth: true, allowedRoles: ['admin', 'manager'] },
+  { path: '/stock',          title: 'Stock Entry',  render: renderStockEntry, requiresAuth: true, allowedRoles: ['admin', 'manager'] },
+  { path: '/sales',          title: 'Sales',        render: renderSales,     requiresAuth: true, allowedRoles: ['admin', 'manager', 'worker'] },
+  { path: '/reports',        title: 'Reports',      render: renderReports,   requiresAuth: true, allowedRoles: ['admin', 'manager'] },
+  { path: '/scanner',        title: 'Scanner',      render: renderScanner,   requiresAuth: true, allowedRoles: ['admin', 'manager', 'worker'] },
+  { path: '/customers',      title: 'Customers',    render: renderCustomers, requiresAuth: true, allowedRoles: ['admin', 'manager', 'worker'] },
+  { path: '/customers/new',  title: 'Add Customer', render: renderAddCustomer, requiresAuth: true, allowedRoles: ['admin', 'manager', 'worker'] },
+  { path: '/customers/edit/:id', title: 'Edit Customer', render: renderAddCustomer, requiresAuth: true, allowedRoles: ['admin', 'manager', 'worker'] },
+  { path: '/customers/history/:id', title: 'Customer History', render: renderCustomerHistory, requiresAuth: true, allowedRoles: ['admin', 'manager', 'worker'] },
   { path: '/workers',        title: 'Workers',      render: renderWorkers,   requiresAuth: true, allowedRoles: ['admin'] },
   { path: '/workers/new',    title: 'Register Worker', render: renderAddWorker, requiresAuth: true, allowedRoles: ['admin'] },
-  { path: '/expenses',       title: 'Expenses',     render: renderExpenses,  requiresAuth: true, allowedRoles: ['admin'] },
+  { path: '/expenses',       title: 'Expenses',     render: renderExpenses,  requiresAuth: true, allowedRoles: ['admin', 'manager'] },
   { path: '/audit-logs',     title: 'Activity History', render: renderAuditLogs, requiresAuth: true, allowedRoles: ['admin'] },
-  { path: '/suppliers',      title: 'Suppliers',    render: renderSuppliers, requiresAuth: true, allowedRoles: ['admin'] },
-  { path: '/categories',     title: 'Categories',   render: renderCategories, requiresAuth: true, allowedRoles: ['admin'] },
-  { path: '/stock-alerts',   title: 'Stock Alerts', render: renderStockAlerts, requiresAuth: true, allowedRoles: ['admin', 'worker'] },
+  { path: '/suppliers',      title: 'Suppliers',    render: renderSuppliers, requiresAuth: true, allowedRoles: ['admin', 'manager'] },
+  { path: '/categories',     title: 'Categories',   render: renderCategories, requiresAuth: true, allowedRoles: ['admin', 'manager'] },
+  { path: '/locations',      title: 'Locations',    render: renderLocations,  requiresAuth: true, allowedRoles: ['admin'] },
+  { path: '/stock-alerts',   title: 'Stock Alerts', render: renderStockAlerts, requiresAuth: true, allowedRoles: ['admin', 'manager', 'worker'] },
   { path: '/bulk-import',    title: 'Bulk Import',  render: renderBulkImport, requiresAuth: true, allowedRoles: ['admin'] },
   { path: '/settings',       title: 'Settings',     render: renderSettings,  requiresAuth: true, allowedRoles: ['admin'] },
   { path: '/login',          title: 'Sign In',      render: renderLogin },

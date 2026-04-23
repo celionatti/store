@@ -118,13 +118,13 @@ export function renderBulkImport(container) {
   function renderPreview(products) {
     previewTable.innerHTML = products.slice(0, 10).map(p => `
       <tr>
-        <td>${escapeHtml(p.name)}</td>
-        <td>${escapeHtml(p.sku)}</td>
-        <td>${escapeHtml(p.barcode)}</td>
-        <td>${p.sellingprice || p.sellingPrice}</td>
-        <td>${p.quantity}</td>
+        <td data-label="Name">${escapeHtml(p.name)}</td>
+        <td data-label="SKU">${escapeHtml(p.sku)}</td>
+        <td data-label="Barcode">${escapeHtml(p.barcode)}</td>
+        <td data-label="Price">${p.sellingprice || p.sellingPrice}</td>
+        <td data-label="Qty">${p.quantity}</td>
       </tr>
-    `).join('') + (products.length > 10 ? `<tr><td colspan="5" class="text-center text-muted">... and ${products.length - 10} more</td></tr>` : '');
+    `).join('') + (products.length > 10 ? `<tr><td colspan="5" data-label="Total" class="text-center text-muted">... and ${products.length - 10} more</td></tr>` : '');
     
     document.getElementById('preview-count').textContent = products.length;
     dropzone.style.display = 'none';

@@ -1,5 +1,5 @@
 /**
- * Workers API — DELETE
+ * Workers API — PUT and DELETE
  * Route: /api/workers/:id
  */
 const { ObjectId } = require('mongodb');
@@ -7,7 +7,7 @@ const { connectToDatabase } = require('../_utils/db');
 const { withAuth } = require('../_utils/auth');
 const { logActivity } = require('../_utils/audit');
 
-async function workerDeleteHandler(req, res) {
+async function workerIdHandler(req, res) {
   if (req.user.role !== 'admin') {
     return res.status(403).json({ error: 'Forbidden: Admin access required' });
   }
@@ -37,8 +37,42 @@ async function workerDeleteHandler(req, res) {
       }
 
       await logActivity(req.user, 'WORKER_DELETED', `Deleted worker with ID: ${id}`);
-      
       return res.status(200).json({ message: 'Worker deleted successfully' });
+    }
+
+    if (req.method === 'PUT') {
+      const { name, email, role, locationId, phone, address } = req.body;
+      const isSelf = String(req.user.id) === String(id);
+
+      const updateData = { updatedAt: new Date() };
+      if (name) updateData.name = name.trim();
+      if (email) updateData.email = (email || '').trim();
+      
+      if (role) {
+        if (isSelf) {
+          // Prevent self-role modification
+          console.warn(`User ${req.user.username} tried to change their own role.`);
+        } else {
+          updateData.role = role.trim().toLowerCase();
+        }
+      }
+      if (locationId !== undefined) updateData.locationId = locationId;
+      if (phone !== undefined) updateData.phone = (phone || '').trim();
+      if (address !== undefined) updateData.address = (address || '').trim();
+
+      const result = await collection.findOneAndUpdate(
+        { _id: objectId },
+        { $set: updateData },
+        { returnDocument: 'after', projection: { hash: 0, salt: 0 } }
+      );
+
+      if (!result) {
+        return res.status(404).json({ error: 'User not found' });
+      }
+
+      await logActivity(req.user, 'WORKER_UPDATED', `Updated worker ${result.username}: role=${result.role}, store=${result.locationId}`);
+      
+      return res.status(200).json({ message: 'Worker updated successfully', user: result });
     }
 
     return res.status(405).json({ error: 'Method not allowed' });
@@ -48,4 +82,4 @@ async function workerDeleteHandler(req, res) {
   }
 }
 
-module.exports = withAuth(workerDeleteHandler);
+module.exports = withAuth(workerIdHandler);

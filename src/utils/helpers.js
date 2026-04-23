@@ -10,6 +10,18 @@ export function setCurrentCurrency(currency) {
   localStorage.setItem('store_currency', currency);
 }
 
+export function getLocationId() {
+  return localStorage.getItem('active_location_id') || null;
+}
+
+export function setLocationId(id) {
+  if (id) {
+    localStorage.setItem('active_location_id', id);
+  } else {
+    localStorage.removeItem('active_location_id');
+  }
+}
+
 export function getCurrencySymbol() {
   const currency = getCurrentCurrency();
   const symbols = {
@@ -135,3 +147,32 @@ export function updateBrandName(name) {
     footerBrand.textContent = name;
   }
 }
+
+/**
+ * Parse text containing multiple barcode/IMEI strings into an array.
+ * Handles: JSON arrays, comma, semicolon, pipe, newline, and tab separated values.
+ * Returns a deduplicated array of trimmed, non-empty strings.
+ */
+export function parseMultiCodes(text) {
+  if (!text || !text.trim()) return [];
+
+  const trimmed = text.trim();
+
+  // Try JSON array first
+  if (trimmed.startsWith('[')) {
+    try {
+      const arr = JSON.parse(trimmed);
+      if (Array.isArray(arr)) {
+        return [...new Set(arr.map(v => String(v).trim()).filter(Boolean))];
+      }
+    } catch (e) { /* not valid JSON, fall through */ }
+  }
+
+  // Split by common delimiters: newline, comma, semicolon, pipe, tab
+  const codes = trimmed.split(/[\n\r,;|\t]+/)
+    .map(s => s.trim())
+    .filter(Boolean);
+
+  return [...new Set(codes)];
+}
+

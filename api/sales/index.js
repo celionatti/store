@@ -4,7 +4,7 @@
  */
 const { ObjectId } = require('mongodb');
 const { connectToDatabase } = require('../_utils/db');
-const { validateSale, validateCartSale } = require('../_utils/validate');
+const { validateSale, validateCartSale, isValidObjectId } = require('../_utils/validate');
 const { withAuth } = require('../_utils/auth');
 const { logActivity } = require('../_utils/audit');
 
@@ -28,6 +28,28 @@ async function salesHandler(req, res) {
           if (isNaN(toDate.getTime())) return res.status(400).json({ error: 'Invalid "to" date format' });
           toDate.setHours(23, 59, 59, 999);
           filter.createdAt.$lte = toDate;
+        }
+      }
+
+      const locationId = req.user.locationId;
+      const locationIdStr = (locationId && ObjectId.isValid(locationId)) ? String(locationId) : null;
+
+      // Identify if this is the DEFAULT store for legacy fallback
+      const activeLoc = locationIdStr ? await db.collection('locations').findOne({ _id: new ObjectId(locationIdStr) }) : null;
+      const isDefaultStore = activeLoc?.isDefault || false;
+
+      // Filter: If default store, include legacy (missing locationId)
+      if (locationIdStr) {
+        const locIdObj = new ObjectId(locationIdStr);
+        const locationIds = [locationIdStr, locIdObj];
+        if (isDefaultStore) {
+          filter.$or = [
+            { locationId: { $in: locationIds } },
+            { locationId: { $exists: false } },
+            { locationId: null }
+          ];
+        } else {
+          filter.locationId = { $in: locationIds };
         }
       }
 
@@ -76,9 +98,15 @@ async function salesHandler(req, res) {
         const taxAmount = (itemTotal * taxRate) / 100;
         const subtotalWithTax = itemTotal + taxAmount;
         
+        // Defensive ID validation to prevent 500 crashes
+        const validProductId = isValidObjectId(item.productId) ? new ObjectId(item.productId) : null;
+        if (!validProductId) {
+          return res.status(400).json({ error: `Invalid product ID for item: ${item.productName}` });
+        }
+
         const sale = {
           transactionId,
-          productId: item.productId,
+          productId: validProductId,
           productName: item.productName || '',
           quantity: parseInt(item.quantity),
           soldItemBarcode: item.soldItemBarcode ? item.soldItemBarcode.trim() : null,
@@ -87,34 +115,124 @@ async function salesHandler(req, res) {
           totalAmount: subtotalWithTax,
           taxAmount: taxAmount,
           profit: parseFloat(item.profit) || ((parseFloat(item.unitPrice) - parseFloat(item.costPrice)) * parseInt(item.quantity)),
-          customerId: customerId ? new ObjectId(customerId) : null,
+          customerId: isValidObjectId(customerId) ? new ObjectId(customerId) : null,
           customerName: customerName || null,
+          locationId: req.user.locationId, // Can be String (Admin) or ObjectId (Manager)
           workerName: req.user?.name || 'Admin',
           createdAt: now,
         };
 
         await db.collection('sales').insertOne(sale);
 
-        const productUpdate = {
-          $inc: { quantity: -sale.quantity },
-          $set: { updatedAt: now },
-        };
+        // --- ROBUST STOCK UPDATE ---
+        const locationIdStr = String(sale.locationId);
+        const product = await db.collection('products').findOne({ _id: validProductId });
+        
+        if (!product) {
+            return res.status(404).json({ error: `Product not found: ${item.productName}` });
+        }
 
-        if (sale.soldItemBarcode) {
-          productUpdate.$pull = { itemBarcodes: sale.soldItemBarcode };
+        // Identify if this is the DEFAULT store for legacy fallback
+        const activeLoc = isValidObjectId(sale.locationId) ? await db.collection('locations').findOne({ _id: new ObjectId(sale.locationId) }) : null;
+        const isDefaultStore = activeLoc?.isDefault || false;
+
+        const hasLocationStockArr = Array.isArray(product.locationStock);
+        const hasSpecificLocStock = hasLocationStockArr && product.locationStock.some(s => s.locationId === locationIdStr);
+
+        let productUpdate = {};
+        let updateOptions = {};
+
+        if (hasSpecificLocStock) {
+          // 1. Regular Multi-Store Update
+          productUpdate = {
+            $inc: { 'locationStock.$[elem].quantity': -sale.quantity },
+            $set: { updatedAt: now },
+          };
+          if (sale.soldItemBarcode) {
+            productUpdate.$pull = { 'locationStock.$[elem].itemBarcodes': sale.soldItemBarcode };
+          }
+          const filterLocationId = isValidObjectId(sale.locationId) ? new ObjectId(sale.locationId) : sale.locationId;
+          updateOptions = { arrayFilters: [{ 'elem.locationId': filterLocationId }] };
+        } 
+        else if (hasLocationStockArr) {
+          // 2. Multi-Store structure exists but NOT for this location: Initialize it
+          productUpdate = {
+            $push: { 
+              locationStock: {
+                locationId: locationIdStr,
+                quantity: -sale.quantity,
+                itemBarcodes: []
+              }
+            },
+            $set: { updatedAt: now }
+          };
+        }
+        else if (isDefaultStore) {
+          // 3. Legacy Product in Default Store: Decrement root quantity
+          productUpdate = {
+            $inc: { quantity: -sale.quantity },
+            $set: { updatedAt: now }
+          };
+          if (sale.soldItemBarcode) {
+             productUpdate.$pull = { itemBarcodes: sale.soldItemBarcode };
+          }
+        }
+        else {
+          // 4. Legacy Product in New Store/Branch: Initialize multi-store structure
+          // CRITICAL: We move existing root quantity to the Main Store entry to avoid data loss.
+          // We'll find the default store ID to assign the existing quantity to it.
+          const defaultLoc = await db.collection('locations').findOne({ isDefault: true });
+          const defaultLocIdStr = defaultLoc ? String(defaultLoc._id) : 'main';
+          const legacyQty = parseInt(product.quantity) || 0;
+          const legacyBarcodes = Array.isArray(product.itemBarcodes) ? product.itemBarcodes : (product.barcode ? [product.barcode] : []);
+
+          let initialStock = [];
+          
+          if (locationIdStr === defaultLocIdStr) {
+            // Selling from main store
+            initialStock.push({
+              locationId: locationIdStr,
+              quantity: legacyQty - sale.quantity,
+              itemBarcodes: legacyBarcodes
+            });
+          } else {
+            // Selling from a branch: Keep main store stock as is, and add branch entry
+            initialStock.push({
+              locationId: defaultLocIdStr,
+              quantity: legacyQty,
+              itemBarcodes: legacyBarcodes
+            });
+            initialStock.push({
+              locationId: locationIdStr,
+              quantity: -sale.quantity,
+              itemBarcodes: []
+            });
+          }
+
+          productUpdate = {
+            $set: { 
+              locationStock: initialStock,
+              updatedAt: now 
+            },
+            $unset: {
+              quantity: "",
+              itemBarcodes: ""
+            }
+          };
         }
 
         await db.collection('products').updateOne(
-          { _id: new ObjectId(item.productId) },
-          productUpdate
+          { _id: validProductId },
+          productUpdate,
+          updateOptions
         );
 
         saleRecords.push(sale);
         totalTransactionAmount += subtotalWithTax;
       }
 
-      // Update customer totalSpent and balance if customerId is provided
-      if (customerId) {
+      // Update customer totalSpent and balance if valid customerId is provided
+      if (isValidObjectId(customerId)) {
         await db.collection('customers').updateOne(
           { _id: new ObjectId(customerId) },
           { 

@@ -63,14 +63,14 @@ export function renderStockAlerts(container) {
             <tbody>
               ${alerts.map(p => `
                 <tr>
-                  <td><strong>${escapeHtml(p.name)}</strong></td>
-                  <td class="text-muted text-sm">${escapeHtml(p.sku)}</td>
-                  <td>${escapeHtml(p.supplierName)}</td>
-                  <td>${formatCurrency(p.sellingPrice)}</td>
-                  <td class="font-bold ${p.quantity === 0 ? 'text-danger' : 'text-warning'}">${p.quantity}</td>
-                  <td class="text-muted">${p.reorderLevel}</td>
-                  <td>${getStockBadge(p.quantity, p.reorderLevel)}</td>
-                  <td>
+                  <td data-label="Product"><strong>${escapeHtml(p.name)}</strong></td>
+                  <td data-label="SKU" class="text-muted text-sm">${escapeHtml(p.sku)}</td>
+                  <td data-label="Supplier">${escapeHtml(p.supplierName)}</td>
+                  <td data-label="Price">${formatCurrency(p.sellingPrice)}</td>
+                  <td data-label="Stock" class="font-bold ${p.quantity === 0 ? 'text-danger' : 'text-warning'}">${p.quantity}</td>
+                  <td data-label="Threshold" class="text-muted">${p.reorderLevel}</td>
+                  <td data-label="Status">${getStockBadge(p.quantity, p.reorderLevel)}</td>
+                  <td data-label="Action">
                     <a href="#/stock?productId=${p._id}" class="btn btn-primary btn-sm">Restock</a>
                   </td>
                 </tr>

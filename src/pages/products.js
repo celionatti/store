@@ -7,6 +7,7 @@ import { showToast } from '../components/toast.js';
 import { showModal } from '../components/modal.js';
 import { renderPagination } from '../components/pagination.js';
 import { startPolling } from '../utils/polling.js';
+import { getUser } from './login.js';
 
 export function renderProducts(container) {
   container.innerHTML = `
@@ -149,6 +150,7 @@ export function renderProducts(container) {
               <th>Cost</th>
               <th>Price</th>
               <th>Stock</th>
+              ${getUser()?.role === 'admin' ? '<th>Total Stock</th>' : ''}
               <th>Status</th>
               <th>Actions</th>
             </tr>
@@ -159,9 +161,10 @@ export function renderProducts(container) {
                 <td data-label="Product"><strong>${escapeHtml(p.name)}</strong></td>
                 <td data-label="SKU" class="text-muted text-sm">${escapeHtml(p.sku)}</td>
                 <td data-label="Category">${escapeHtml(p.category || '—')}</td>
-                <td data-label="Cost">${formatCurrency(p.costPrice)}</td>
+                 <td data-label="Cost">${formatCurrency(p.costPrice)}</td>
                 <td data-label="Price">${formatCurrency(p.sellingPrice)}</td>
                 <td data-label="Stock">${p.quantity}</td>
+                ${getUser()?.role === 'admin' ? `<td data-label="Total Stock">${p.totalQuantity ?? p.quantity}</td>` : ''}
                 <td data-label="Status">${getStockBadge(p.quantity, p.reorderLevel)}</td>
                 <td data-label="Actions">
                   <div class="flex gap-sm">

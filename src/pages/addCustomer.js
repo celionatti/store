@@ -36,6 +36,16 @@ export function renderAddCustomer(container, params = {}) {
           </div>
         </div>
 
+        <div class="form-group" style="margin-top: 1rem;">
+          <label class="flex items-center gap-sm cursor-pointer">
+            <input type="checkbox" id="cust-global" style="width: 18px; height: 18px;" />
+            <div>
+              <strong>Global Customer</strong>
+              <div class="text-muted text-xs">If checked, this customer will be visible in ALL branches.</div>
+            </div>
+          </label>
+        </div>
+
         <div style="margin-top: var(--space-xl); display: flex; justify-content: flex-end;">
           <button type="submit" class="btn btn-primary" id="save-btn" style="min-width: 150px;">
             ${isEdit ? 'Update Customer' : 'Save Customer'}
@@ -56,6 +66,7 @@ export function renderAddCustomer(container, params = {}) {
       document.getElementById('cust-email').value = customer.email || '';
       document.getElementById('cust-phone').value = customer.phone || '';
       document.getElementById('cust-balance').value = customer.balance || 0;
+      document.getElementById('cust-global').checked = !!customer.isGlobal;
     } catch (err) {
       showToast(err.message || 'Failed to load customer', 'error');
     }
@@ -72,6 +83,7 @@ export function renderAddCustomer(container, params = {}) {
       email: document.getElementById('cust-email').value,
       phone: document.getElementById('cust-phone').value,
       balance: document.getElementById('cust-balance').value,
+      isGlobal: document.getElementById('cust-global').checked,
     };
 
     const originalText = saveBtn.textContent;
@@ -83,8 +95,12 @@ export function renderAddCustomer(container, params = {}) {
         await api.updateCustomer(params.id, payload);
         showToast('Customer updated successfully', 'success');
       } else {
-        await api.createCustomer(payload);
-        showToast('Customer added successfully', 'success');
+        const res = await api.createCustomer(payload);
+        if (res.isNew === false) {
+          showToast('Existing customer found and linked to this branch!', 'info');
+        } else {
+          showToast('Customer added successfully', 'success');
+        }
       }
       window.location.hash = '#/customers';
     } catch (err) {

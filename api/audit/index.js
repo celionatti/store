@@ -14,16 +14,49 @@ async function auditHandler(req, res) {
   try {
     const { db } = await connectToDatabase();
     const logsCol = db.collection('audit_logs');
+    const locCol = db.collection('locations');
 
     if (req.method === 'GET') {
-      // Fetch last 100 logs for now
+      const locationId = req.user.locationId;
+      const locationIdStr = (locationId && require('mongodb').ObjectId.isValid(locationId)) ? String(locationId) : null;
+
+      // Identify if this is the DEFAULT store for legacy fallback
+      const { ObjectId } = require('mongodb');
+      const activeLoc = locationIdStr ? await locCol.findOne({ _id: new ObjectId(locationIdStr) }) : null;
+      const isDefaultStore = activeLoc?.isDefault || false;
+
+      const filter = {};
+      if (locationIdStr) {
+        if (isDefaultStore) {
+          filter.$or = [
+            { locationId: locationIdStr },
+            { locationId: { $exists: false } },
+            { locationId: null }
+          ];
+        } else {
+          filter.locationId = locationIdStr;
+        }
+      }
+
+      // Fetch last 100 logs for the current context
       const logs = await logsCol
-        .find({})
+        .find(filter)
         .sort({ timestamp: -1 })
         .limit(100)
         .toArray();
 
-      return res.status(200).json({ logs });
+      const locations = await locCol.find({}).toArray();
+      const locMap = {};
+      locations.forEach(loc => {
+        locMap[String(loc._id)] = loc.name;
+      });
+
+      const enrichedLogs = logs.map(log => ({
+        ...log,
+        storeName: log.locationId ? (locMap[log.locationId] || 'Unknown Store') : 'Default Store'
+      }));
+
+      return res.status(200).json({ logs: enrichedLogs });
     }
 
     if (req.method === 'DELETE') {

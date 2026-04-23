@@ -6,9 +6,11 @@ const BASE = '/api';
 async function request(endpoint, options = {}) {
   const url = `${BASE}${endpoint}`;
   const token = localStorage.getItem('store_auth');
+  const activeLocationId = localStorage.getItem('active_location_id') || '';
   
   const headers = { 
     'Content-Type': 'application/json',
+    'X-Location-Id': activeLocationId,
     ...options.headers 
   };
 
@@ -84,6 +86,7 @@ export const api = {
 
   // Workers
   getWorkers: () => request('/workers'),
+  updateWorker: (id, data) => request(`/workers/${id}`, { method: 'PUT', body: data }),
   deleteWorker: (id) => request(`/workers/${id}`, { method: 'DELETE' }),
 
   // Sales
@@ -136,6 +139,10 @@ export const api = {
   updateSupplier: (id, data) => request(`/suppliers/${id}`, { method: 'PUT', body: data }),
   deleteSupplier: (id) => request(`/suppliers/${id}`, { method: 'DELETE' }),
 
+  // Batch Operations
+  lookupBarcodes: (codes) => request('/products/batch-lookup', { method: 'POST', body: { codes } }),
+  createBulkStockEntries: (data) => request('/stock/bulk', { method: 'POST', body: data }),
+
   // Stock Intelligence
   getStockAlerts: () => request('/stock/alerts'),
 
@@ -146,4 +153,10 @@ export const api = {
   getNotifications: () => request('/notifications'),
   markNotificationRead: (id) => request('/notifications', { method: 'PUT', body: { id } }),
   deleteNotification: (id) => request(`/notifications?id=${id}`, { method: 'DELETE' }),
+
+  // Locations / Stores
+  getLocations: () => request('/locations'),
+  createLocation: (data) => request('/locations', { method: 'POST', body: data }),
+  updateLocation: (data) => request('/locations', { method: 'PUT', body: data }),
+  deleteLocation: (id) => request(`/locations?id=${id}`, { method: 'DELETE' }),
 };

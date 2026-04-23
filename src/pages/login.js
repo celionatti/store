@@ -68,6 +68,11 @@ export function renderLogin(container) {
       localStorage.setItem('store_auth', response.token);
       localStorage.setItem('store_user', JSON.stringify(response.user));
       
+      // Auto-sync Location ID for everyone initially (Admins can change later)
+      if (response.user.locationId) {
+        localStorage.setItem('active_location_id', response.user.locationId);
+      }
+      
       showToast('Welcome back, ' + response.user.name + '!', 'success');
 
       // Sync settings immediately after login so brand name and currency update

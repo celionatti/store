@@ -4,6 +4,7 @@
  */
 const { connectToDatabase } = require('../_utils/db');
 const { withAuth } = require('../_utils/auth');
+const { mapProductForLocation } = require('../_utils/stock');
 
 async function stockAlertsHandler(req, res) {
   try {
@@ -11,13 +12,29 @@ async function stockAlertsHandler(req, res) {
     const collection = db.collection('products');
 
     if (req.method === 'GET') {
-      // Find products where quantity <= reorderLevel
-      const products = await collection
-        .find({
-          $expr: { $lte: ["$quantity", "$reorderLevel"] }
-        })
-        .sort({ quantity: 1 })
-        .toArray();
+      const locationId = req.user.locationId;
+      const locationIdStr = locationId ? String(locationId) : null;
+      const isAdmin = ['admin', 'manager'].includes(req.user.role);
+
+      // To find low stock per location, we use aggregation since quantities are now nested
+      const products = await collection.aggregate([
+        { $unwind: "$locationStock" },
+        { $match: { "locationStock.locationId": locationIdStr } },
+        { $project: { 
+            name: 1, 
+            sku: 1, 
+            quantity: "$locationStock.quantity", 
+            reorderLevel: 1,
+            supplierId: 1,
+            category: 1,
+            costPrice: 1,
+            sellingPrice: 1,
+            itemBarcodes: "$locationStock.itemBarcodes",
+            locationStock: 1 // Keep for mapper if needed, though we projected quantity already
+        }},
+        { $match: { $expr: { $lte: ["$quantity", "$reorderLevel"] } } },
+        { $sort: { quantity: 1 } }
+      ]).toArray();
 
       // Enrich with supplier info if possible
       const supplierIds = [...new Set(products.map(p => p.supplierId).filter(Boolean))];

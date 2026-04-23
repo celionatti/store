@@ -23,6 +23,27 @@ async function expensesHandler(req, res) {
         }
       }
 
+      const locationId = req.user.locationId;
+      const locationIdStr = (locationId && require('mongodb').ObjectId.isValid(locationId)) ? String(locationId) : null;
+
+      // Identify if this is the DEFAULT store for legacy fallback
+      const { ObjectId } = require('mongodb');
+      const activeLoc = locationIdStr ? await db.collection('locations').findOne({ _id: new ObjectId(locationIdStr) }) : null;
+      const isDefaultStore = activeLoc?.isDefault || false;
+
+      // Filter: If default store, include legacy (missing locationId)
+      if (locationIdStr) {
+        if (isDefaultStore) {
+          filter.$or = [
+            { locationId: locationIdStr },
+            { locationId: { $exists: false } },
+            { locationId: null }
+          ];
+        } else {
+          filter.locationId = locationIdStr;
+        }
+      }
+
       const expenses = await db.collection('expenses')
         .find(filter)
         .sort({ date: -1 })
@@ -43,6 +64,7 @@ async function expensesHandler(req, res) {
         category: category.trim(),
         description: (description || '').trim(),
         date: date ? new Date(date) : new Date(),
+        locationId: req.user.locationId,
         createdAt: new Date(),
       };
 

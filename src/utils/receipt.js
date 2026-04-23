@@ -2,12 +2,14 @@
  * Receipt Printing Utility
  */
 import { formatCurrency, formatDateTime } from './helpers.js';
+import { api } from '../api.js';
 
-export function printReceipt(saleOrItems, settings = {}) {
-  const businessName = settings.shopName || 'Celio Store';
-  const businessSlogan = settings.shopSlogan || 'Professional Store Management';
-  const businessAddress = settings.shopAddress || '';
-  const businessPhone = settings.shopPhone || '';
+export async function printReceipt(saleOrItems, settings = {}) {
+  let businessLogo = settings.shopLogo || null;
+  let businessName = settings.shopName || 'Celio Store';
+  let businessSlogan = settings.shopSlogan || 'Professional Store Management';
+  let businessAddress = settings.shopAddress || '';
+  let businessPhone = settings.shopPhone || '';
 
   // Normalize to array of items
   const items = Array.isArray(saleOrItems) ? saleOrItems : [saleOrItems];
@@ -16,6 +18,21 @@ export function printReceipt(saleOrItems, settings = {}) {
   const receiptDate = items[0]?.createdAt || new Date().toISOString();
 
   const printWindow = window.open('', '_blank', 'width=600,height=700');
+
+  // Fetch unique store info
+  if (items[0]?.locationId) {
+    try {
+      const res = await api.getLocations();
+      const locs = res.locations || res || [];
+      const loc = locs.find(l => String(l._id) === String(items[0].locationId));
+      if (loc && loc.name !== 'Main Store') {
+        businessName = loc.name || businessName;
+        businessAddress = loc.address || businessAddress;
+      }
+    } catch(err) {
+      console.warn('Failed to load store location for receipt', err);
+    }
+  }
 
   const itemsHtml = items.map(item => `
     <tr>
@@ -58,6 +75,7 @@ export function printReceipt(saleOrItems, settings = {}) {
     </head>
     <body>
       <div class="header">
+        ${businessLogo ? `<img src="${businessLogo}" alt="Logo" style="width:80px; height:80px; object-fit:contain; margin-bottom:10px;" />` : ''}
         <h1>${businessName}</h1>
         <p>${businessSlogan}</p>
         ${businessAddress ? `<p class="contact-info">${businessAddress}</p>` : ''}

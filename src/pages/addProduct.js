@@ -3,7 +3,7 @@
  */
 import { api } from "../api.js";
 import { showToast } from "../components/toast.js";
-import { generateSKU, escapeHtml } from "../utils/helpers.js";
+import { generateSKU, escapeHtml, parseMultiCodes } from "../utils/helpers.js";
 
 export function renderAddProduct(container, params = {}) {
   const isEdit = !!params.id;
@@ -43,15 +43,15 @@ export function renderAddProduct(container, params = {}) {
           <div class="form-group" style="grid-column: 1 / -1; border-top: 1px solid var(--color-border); padding-top: var(--space-md);">
             <label class="form-label">Individual Items (IMEIs / Unique Barcodes)</label>
             <div class="form-row mb-sm">
-              <input type="text" id="pf-imei-input" class="form-input" placeholder="Scan or type unique IMEI..." />
+              <textarea id="pf-imei-input" class="form-input" rows="2" placeholder="Type a single IMEI or paste multiple (comma, semicolon, or newline separated)…" style="resize: vertical; min-height: 42px;"></textarea>
               <button type="button" class="btn btn-outline btn-sm" id="add-imei">Add</button>
               <button type="button" class="btn btn-outline btn-sm" id="scan-imei" title="Scan IMEI">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>
                 <span class="hide-mobile">Scan IMEI</span>
               </button>
             </div>
-            <div id="imei-list" class="flex flex-wrap gap-sm"></div>
-            <p class="text-sm text-muted mt-sm">Note: If IMEIs are added, quantity is optionally auto-calculated based on the number of individual items.</p>
+            <div id="imei-list"></div>
+            <p class="text-sm text-muted mt-sm">Tip: Paste multiple IMEIs at once (comma, semicolon, or newline separated). Quantity auto-updates based on count.</p>
           </div>
           <div id="pf-scanner-container" style="display:none; grid-column: 1 / -1; margin-top: var(--space-md);">
             <div id="pf-scanner-viewfinder" style="width: 100%; max-width: 400px; border-radius: var(--radius-md); overflow: hidden; border: 2px solid var(--color-border);"></div>
@@ -109,16 +109,39 @@ export function renderAddProduct(container, params = {}) {
   function renderImeis() {
     const list = document.getElementById("imei-list");
     if (!list) return;
-    list.innerHTML = itemBarcodes
-      .map(
-        (imei, index) => `
-      <span class="chip flex-align-center" style="background:var(--color-bg-alt); padding:5px 10px; border-radius:15px; display:inline-flex; align-items:center; gap:5px; border:1px solid var(--color-border); font-size:12px; max-width: 100%; word-break: break-all;">
-        ${escapeHtml(imei)}
-        <button type="button" style="background:none; border:none; color:var(--color-danger); cursor:pointer;" onclick="window.removeImei(${index})">&times;</button>
-      </span>
-    `,
-      )
-      .join("");
+
+    if (itemBarcodes.length === 0) {
+      list.innerHTML = "";
+    } else {
+      list.innerHTML = `
+        <div class="imei-builder-container">
+          <div class="imei-builder-header">
+            <div class="imei-builder-title">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/></svg>
+              Registered Items
+              <span class="imei-builder-count">${itemBarcodes.length}</span>
+            </div>
+            <div class="imei-builder-actions">
+              <button type="button" class="btn-clear" onclick="window.clearAllImeis()">Clear All</button>
+            </div>
+          </div>
+          <div class="imei-builder-grid">
+            ${itemBarcodes
+              .map(
+                (imei, index) => `
+              <div class="imei-chip">
+                <span class="imei-chip-text" title="${escapeHtml(imei)}">${escapeHtml(imei)}</span>
+                <button type="button" class="imei-chip-remove" onclick="window.removeImei(${index})" title="Remove Item">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                </button>
+              </div>
+            `,
+              )
+              .join("")}
+          </div>
+        </div>
+      `;
+    }
 
     const qtyInput = document.getElementById("pf-quantity");
     if (itemBarcodes.length > 0) {
@@ -131,20 +154,44 @@ export function renderAddProduct(container, params = {}) {
     renderImeis();
   };
 
+  window.clearAllImeis = () => {
+    if (confirm("Are you sure you want to remove all items?")) {
+      itemBarcodes = [];
+      renderImeis();
+    }
+  };
+
   document.getElementById("add-imei")?.addEventListener("click", () => {
     const input = document.getElementById("pf-imei-input");
     const val = input.value.trim();
-    if (val && !itemBarcodes.includes(val)) {
-      itemBarcodes.push(val);
+    if (!val) return;
+
+    // Parse for multiple codes (comma, semicolon, newline, JSON array, etc.)
+    const codes = parseMultiCodes(val);
+    let addedCount = 0;
+    for (const code of codes) {
+      if (code && !itemBarcodes.includes(code)) {
+        itemBarcodes.push(code);
+        addedCount++;
+      }
+    }
+
+    if (addedCount > 0) {
       input.value = "";
       renderImeis();
+      if (addedCount > 1) {
+        showToast(`Added ${addedCount} IMEIs`, "success");
+      }
+    } else {
+      showToast("IMEIs already added or input was empty", "warning");
     }
   });
 
   document
     .getElementById("pf-imei-input")
     ?.addEventListener("keypress", (e) => {
-      if (e.key === "Enter") {
+      // Enter without Shift triggers Add (Shift+Enter for new line in textarea)
+      if (e.key === "Enter" && !e.shiftKey) {
         e.preventDefault();
         document.getElementById("add-imei").click();
       }
@@ -177,10 +224,18 @@ export function renderAddProduct(container, params = {}) {
             showToast("General barcode scanned!", "success");
             stopScanner();
           } else if (scanTarget === "imei") {
-            if (!itemBarcodes.includes(decodedText)) {
-              itemBarcodes.push(decodedText);
+            // Support multi-IMEI QR codes scanned via camera
+            const codes = parseMultiCodes(decodedText);
+            let addedCount = 0;
+            for (const code of codes) {
+              if (code && !itemBarcodes.includes(code)) {
+                itemBarcodes.push(code);
+                addedCount++;
+              }
+            }
+            if (addedCount > 0) {
               renderImeis();
-              showToast("IMEI scanned!", "success");
+              showToast(addedCount > 1 ? `${addedCount} IMEIs scanned!` : "IMEI scanned!", "success");
             }
           }
         },
@@ -249,12 +304,21 @@ export function renderAddProduct(container, params = {}) {
 
     if (isEdit) {
       loadProduct(params.id);
+    } else {
+      if (params.barcode) {
+        document.getElementById("pf-barcode").value = params.barcode;
+      }
+      if (params.imeis) {
+        itemBarcodes = parseMultiCodes(decodeURIComponent(params.imeis));
+        renderImeis();
+      }
     }
   }
 
   async function loadProduct(id) {
     try {
-      const product = await api.getProduct(id);
+      const resp = await api.getProduct(id);
+      const product = resp.product || resp;
       document.getElementById("pf-name").value = product.name || "";
       document.getElementById("pf-sku").value = product.sku || "";
       document.getElementById("pf-barcode").value = product.barcode || "";

@@ -1,6 +1,15 @@
 /**
  * Validation Utilities for API Payloads
  */
+const { ObjectId } = require('mongodb');
+
+function isValidObjectId(id) {
+  if (!id) return false;
+  if (ObjectId.isValid(id)) {
+    if (String(new ObjectId(id)) === String(id)) return true;
+  }
+  return false;
+}
 
 function validateProduct(body) {
   const errors = [];
@@ -76,4 +85,11 @@ function validateSupplier(body) {
   return errors;
 }
 
-module.exports = { validateProduct, validateStockEntry, validateSale, validateCartSale, validateSupplier };
+module.exports = { 
+  isValidObjectId,
+  validateProduct, 
+  validateStockEntry, 
+  validateSale, 
+  validateCartSale, 
+  validateSupplier 
+};

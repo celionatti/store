@@ -2,6 +2,7 @@
  * Dashboard API — Aggregated stats
  * Route: /api/dashboard
  */
+const { ObjectId } = require('mongodb');
 const { connectToDatabase } = require('../_utils/db');
 const { withAuth } = require('../_utils/auth');
 
@@ -14,150 +15,172 @@ async function dashboardHandler(req, res) {
     const { db } = await connectToDatabase();
     const productsCol = db.collection('products');
     const salesCol = db.collection('sales');
+    const locCol = db.collection('locations');
 
-    // Total products
-    const totalProducts = await productsCol.countDocuments();
+    const locationId = req.user.locationId;
+    let locationIdStr = null;
+    if (locationId) {
+      locationIdStr = String(locationId);
+    }
 
-    // Inventory values (Investment vs Potential)
-    const inventoryAgg = await productsCol.aggregate([
+    // Determine if this is the DEFAULT location
+    const activeLoc = locationIdStr && ObjectId.isValid(locationIdStr) ? await locCol.findOne({ _id: new ObjectId(locationIdStr) }) : null;
+    const isDefaultStore = activeLoc?.isDefault || false;
+
+    // 1. Isolation Filters
+    // Metric isolation for Sales/Expenses (matches both String and ObjectId due to legacy typing)
+    const locIdObj = (locationIdStr && ObjectId.isValid(locationIdStr)) ? new ObjectId(locationIdStr) : null;
+    const locationIds = locIdObj ? [locationIdStr, locIdObj] : [locationIdStr];
+
+    const entryFilter = isDefaultStore 
+      ? { $or: [{ locationId: { $in: locationIds } }, { locationId: { $exists: false } }, { locationId: null }] }
+      : { locationId: { $in: locationIds } };
+
+    // Metric isolation for Products
+    const productFilter = isDefaultStore
+      ? { $or: [{ "locationStock.locationId": locationIdStr }, { locationStock: { $exists: false } }, { locationStock: { $size: 0 } }] }
+      : { "locationStock.locationId": locationIdStr };
+
+    /**
+     * Aggregation Pipeline Step for local quantity
+     */
+    const addEffectiveQtyStep = {
+      $addFields: {
+        effectiveQty: {
+          $let: {
+            vars: {
+              matched: {
+                $filter: {
+                  input: { $ifNull: ["$locationStock", []] },
+                  as: "s",
+                  cond: { $eq: ["$$s.locationId", locationIdStr] }
+                }
+              }
+            },
+            in: {
+              $let: {
+                vars: { hasMatched: { $gt: [{ $size: "$$matched" }, 0] } },
+                in: {
+                  $cond: [
+                    "$$hasMatched",
+                    { $arrayElemAt: ["$$matched.quantity", 0] },
+                    isDefaultStore ? { $ifNull: ["$quantity", 0] } : 0
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    };
+
+    // 1. Total products (Isolated)
+    const totalProducts = await productsCol.countDocuments(productFilter);
+
+    // 2. Inventory values
+    const inventoryValues = await productsCol.aggregate([
+      { $match: productFilter },
+      addEffectiveQtyStep,
       {
         $group: {
           _id: null,
-          totalCost: { $sum: { $multiply: ['$costPrice', '$quantity'] } },
-          totalSelling: { $sum: { $multiply: ['$sellingPrice', '$quantity'] } },
+          totalCost: { $sum: { $multiply: [{ $ifNull: ['$costPrice', 0] }, '$effectiveQty'] } },
+          totalSelling: { $sum: { $multiply: [{ $ifNull: ['$sellingPrice', 0] }, '$effectiveQty'] } },
         },
       },
     ]).toArray();
-    const investmentValue = inventoryAgg[0]?.totalCost || 0;
-    const potentialValue = inventoryAgg[0]?.totalSelling || 0;
+    const investmentValue = inventoryValues[0]?.totalCost || 0;
+    const potentialValue = inventoryValues[0]?.totalSelling || 0;
 
-    // Low stock products
-    const lowStockProducts = await productsCol.find({
-      $expr: { $lte: ['$quantity', '$reorderLevel'] },
-    }).sort({ quantity: 1 }).limit(10).toArray();
-
-    // Today's sales
-    const todayStart = new Date();
-    todayStart.setHours(0, 0, 0, 0);
-    const todaySalesAgg = await salesCol.aggregate([
-      { $match: { createdAt: { $gte: todayStart } } },
-      { $group: { _id: null, total: { $sum: '$totalAmount' } } },
+    // 3. Low stock (Isolated)
+    const lowStockProducts = await productsCol.aggregate([
+      { $match: productFilter },
+      addEffectiveQtyStep,
+      { $match: { $expr: { $lte: ["$effectiveQty", { $ifNull: ["$reorderLevel", 0] }] } } },
+      { $sort: { effectiveQty: 1 } },
+      { $limit: 10 },
+      { $project: { name: 1, sku: 1, quantity: "$effectiveQty", reorderLevel: 1 } }
     ]).toArray();
-    const todaySales = todaySalesAgg[0]?.total || 0;
 
-    // Monthly revenue (current month)
-    const monthStart = new Date();
-    monthStart.setDate(1);
-    monthStart.setHours(0, 0, 0, 0);
-    const monthlyRevenueAgg = await salesCol.aggregate([
-      { $match: { createdAt: { $gte: monthStart } } },
-      { $group: { _id: null, total: { $sum: '$totalAmount' } } },
+    // 4. Sales Metrics (Isolated)
+    const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
+    const todaySalesRes = await salesCol.aggregate([
+      { $match: { createdAt: { $gte: todayStart }, ...entryFilter } },
+      { $group: { _id: null, total: { $sum: '$totalAmount' } } }
     ]).toArray();
-    const monthlyRevenue = monthlyRevenueAgg[0]?.total || 0;
 
-    // Revenue Trend Aggregation
-    const { period = 'monthly' } = req.query;
-    let revenueData = [];
-    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const monthStart = new Date(); monthStart.setDate(1); monthStart.setHours(0, 0, 0, 0);
+    const monthSalesRes = await salesCol.aggregate([
+      { $match: { createdAt: { $gte: monthStart }, ...entryFilter } },
+      { $group: { _id: null, total: { $sum: '$totalAmount' } } }
+    ]).toArray();
 
+    // 5. Revenue Trend (Isolated)
+    const period = req.query.period || 'monthly';
+    let groupBy = {};
     if (period === 'daily') {
-      // Last 14 days
-      const fourteenDaysAgo = new Date();
-      fourteenDaysAgo.setDate(fourteenDaysAgo.getDate() - 14);
-      fourteenDaysAgo.setHours(0, 0, 0, 0);
-
-      const dailyAgg = await salesCol.aggregate([
-        { $match: { createdAt: { $gte: fourteenDaysAgo } } },
-        {
-          $group: {
-            _id: {
-              year: { $year: '$createdAt' },
-              month: { $month: '$createdAt' },
-              day: { $dayOfMonth: '$createdAt' },
-            },
-            total: { $sum: '$totalAmount' },
-          },
-        },
-        { $sort: { '_id.year': 1, '_id.month': 1, '_id.day': 1 } },
-      ]).toArray();
-
-      revenueData = dailyAgg.map(d => ({
-        label: `${d._id.day} ${monthNames[d._id.month - 1]}`,
-        total: d.total,
-      }));
+      groupBy = { year: { $year: '$createdAt' }, month: { $month: '$createdAt' }, day: { $dayOfMonth: '$createdAt' } };
     } else if (period === 'weekly') {
-      // Last 12 weeks
-      const twelveWeeksAgo = new Date();
-      twelveWeeksAgo.setDate(twelveWeeksAgo.getDate() - (12 * 7));
-      twelveWeeksAgo.setHours(0, 0, 0, 0);
-
-      const weeklyAgg = await salesCol.aggregate([
-        { $match: { createdAt: { $gte: twelveWeeksAgo } } },
-        {
-          $group: {
-            _id: {
-              year: { $year: '$createdAt' },
-              week: { $week: '$createdAt' },
-            },
-            total: { $sum: '$totalAmount' },
-          },
-        },
-        { $sort: { '_id.year': 1, '_id.week': 1 } },
-      ]).toArray();
-
-      revenueData = weeklyAgg.map(w => ({
-        label: `Wk ${w._id.week}, ${w._id.year}`,
-        total: w.total,
-      }));
+      groupBy = { year: { $isoWeekYear: '$createdAt' }, week: { $isoWeek: '$createdAt' } };
     } else {
-      // Monthly (Default) - Last 6 months
-      const sixMonthsAgo = new Date();
-      sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
-      sixMonthsAgo.setHours(0, 0, 0, 0);
-
-      const monthlyAgg = await salesCol.aggregate([
-        { $match: { createdAt: { $gte: sixMonthsAgo } } },
-        {
-          $group: {
-            _id: {
-              year: { $year: '$createdAt' },
-              month: { $month: '$createdAt' },
-            },
-            total: { $sum: '$totalAmount' },
-          },
-        },
-        { $sort: { '_id.year': 1, '_id.month': 1 } },
-      ]).toArray();
-
-      revenueData = monthlyAgg.map(m => ({
-        label: `${monthNames[m._id.month - 1]} ${m._id.year}`,
-        total: m.total,
-      }));
+      groupBy = { year: { $year: '$createdAt' }, month: { $month: '$createdAt' } };
     }
 
-    // Category breakdown
-    const categoryBreakdown = await productsCol.aggregate([
+    const sortGroup = {};
+    for (let key in groupBy) sortGroup[`_id.${key}`] = 1;
+
+    const trendAgg = await salesCol.aggregate([
+      { $match: entryFilter },
+      { $sort: { createdAt: -1 } },
+      { $limit: 1000 },
       {
         $group: {
-          _id: '$category',
-          count: { $sum: 1 },
+          _id: groupBy,
+          total: { $sum: '$totalAmount' },
         },
       },
-      { $sort: { count: -1 } },
+      { $sort: sortGroup }
     ]).toArray();
+
+    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const revenueByMonth = trendAgg.map(t => {
+      let label = '';
+      if (period === 'daily') {
+         label = `${monthNames[t._id.month - 1]} ${t._id.day}, ${t._id.year}`;
+      } else if (period === 'weekly') {
+         label = `Week ${t._id.week}, ${t._id.year}`;
+      } else {
+         label = `${monthNames[t._id.month - 1]} ${t._id.year}`;
+      }
+      return { label, total: t.total };
+    });
+
+    // 6. Category Breakdown (Isolated)
+    const categoryAgg = await productsCol.aggregate([
+      { $match: productFilter },
+      addEffectiveQtyStep,
+      { $match: { effectiveQty: { $gt: 0 } } },
+      { $group: { _id: "$category", count: { $sum: 1 } } },
+      { $sort: { count: -1 } }
+    ]).toArray();
+
+    // Filter sensitive metrics for Manager role
+    const isAdmin = req.user.role === 'admin';
+    const finalInvestmentValue = isAdmin ? investmentValue : 0;
+    const finalPotentialValue = isAdmin ? potentialValue : 0;
 
     return res.status(200).json({
       totalProducts,
-      investmentValue,
-      potentialValue,
-      todaySales,
-      monthlyRevenue,
+      investmentValue: finalInvestmentValue,
+      potentialValue: finalPotentialValue,
+      todaySales: todaySalesRes[0]?.total || 0,
+      monthlyRevenue: monthSalesRes[0]?.total || 0,
       lowStockProducts,
-      revenueByMonth: revenueData, // Keep key name for compat or rename later
-      categoryBreakdown: categoryBreakdown.map(c => ({
+      revenueByMonth,
+      categoryBreakdown: categoryAgg.map(c => ({
         category: c._id || 'Uncategorized',
-        count: c.count,
-      })),
+        count: c.count
+      }))
     });
   } catch (err) {
     console.error('Dashboard API error:', err);

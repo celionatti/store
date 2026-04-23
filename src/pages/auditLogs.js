@@ -121,6 +121,7 @@ export function renderAuditLogs(container) {
             <tr>
               <th>Action</th>
               <th>User</th>
+              <th>Store</th>
               <th>Details</th>
               <th style="text-align: right;">Date & Time</th>
             </tr>
@@ -128,10 +129,14 @@ export function renderAuditLogs(container) {
           <tbody>
             ${paginated.map(log => `
               <tr>
-                <td><span class="badge ${getBadgeClass(log.action)}">${escapeHtml(log.action.replace(/_/g, ' '))}</span></td>
-                <td><strong>${escapeHtml(log.username)}</strong></td>
-                <td class="text-sm">${escapeHtml(log.details)}</td>
-                <td class="text-muted text-sm" style="text-align: right;">${formatDateTime(log.timestamp)}</td>
+                <td data-label="Action"><span class="badge ${getBadgeClass(log.action)}">${escapeHtml(log.action.replace(/_/g, ' '))}</span></td>
+                <td data-label="User">
+                  <strong>${escapeHtml(log.username)}</strong>
+                  ${log.role ? `<br><span class="badge ${log.role === 'admin' ? 'badge-danger' : log.role === 'manager' ? 'badge-warning' : 'badge-info'}" style="font-size:10px; opacity:0.8">${escapeHtml(log.role)}</span>` : ''}
+                </td>
+                <td data-label="Store"><span class="text-sm font-bold">${escapeHtml(log.storeName || 'Default Store')}</span></td>
+                <td data-label="Details" class="text-sm">${escapeHtml(log.details)}</td>
+                <td data-label="Date & Time" class="text-muted text-sm" style="text-align: right;">${formatDateTime(log.timestamp)}</td>
               </tr>
             `).join('')}
           </tbody>

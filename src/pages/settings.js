@@ -43,6 +43,22 @@ export function renderSettings(container) {
             <label class="form-label" for="st-tax">Default Tax Rate (%)</label>
             <input type="number" id="st-tax" class="form-input" placeholder="e.g. 7.5" step="0.01" min="0" />
           </div>
+          <div class="form-group" style="grid-column: 1 / -1;">
+            <label class="form-label">Store Logo</label>
+            <div class="flex flex-align-center gap-md">
+              <div id="logo-preview-container" style="width:60px; height:60px; border-radius:var(--radius-sm); border:1px dashed var(--color-border); display:flex; align-items:center; justify-content:center; overflow:hidden; background:var(--color-surface);">
+                <span class="text-xs text-muted">No Logo</span>
+              </div>
+              <input type="file" id="st-logo-file" accept="image/png, image/jpeg, image/jpg" style="display:none;" />
+              <button type="button" class="btn btn-outline btn-sm" onclick="document.getElementById('st-logo-file').click()">
+                 Browse Image
+              </button>
+              <button type="button" class="btn btn-icon danger btn-sm" id="btn-clear-logo" title="Clear Logo" style="display:none;">
+                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              </button>
+            </div>
+            <p class="text-xs text-muted mt-sm">Recommended: Square PNG format with a transparent or white background. Please keep the file size under 500KB. Using dark, high-contrast colors works best since thermal receipt printers print in pure black and white.</p>
+          </div>
         </div>
         <button type="submit" class="btn btn-primary mt-md" id="st-submit">
           Save Settings
@@ -66,6 +82,48 @@ export function renderSettings(container) {
 
   loadSettings();
 
+  let currentLogoBase64 = null;
+
+  document.getElementById('st-logo-file')?.addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    
+    if (file.size > 1024 * 1024) {
+      showToast('Image is too large. Please keep it under 1MB', 'warning');
+      e.target.value = '';
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      currentLogoBase64 = event.target.result;
+      updateLogoPreview(currentLogoBase64);
+    };
+    reader.readAsDataURL(file);
+  });
+
+  document.getElementById('btn-clear-logo')?.addEventListener('click', () => {
+    currentLogoBase64 = null;
+    document.getElementById('st-logo-file').value = '';
+    updateLogoPreview(null);
+  });
+
+  function updateLogoPreview(base64) {
+    const container = document.getElementById('logo-preview-container');
+    const clearBtn = document.getElementById('btn-clear-logo');
+    if (!container || !clearBtn) return;
+    
+    if (base64) {
+      container.innerHTML = `<img src="${base64}" style="max-width:100%; max-height:100%; object-fit:contain;" />`;
+      container.style.border = '1px solid var(--color-border)';
+      clearBtn.style.display = 'inline-flex';
+    } else {
+      container.innerHTML = `<span class="text-xs text-muted">No Logo</span>`;
+      container.style.border = '1px dashed var(--color-border)';
+      clearBtn.style.display = 'none';
+    }
+  }
+
   const form = document.getElementById('settings-form');
   form?.addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -78,6 +136,7 @@ export function renderSettings(container) {
         shopSlogan: document.getElementById('st-slogan').value,
         shopAddress: document.getElementById('st-address').value,
         shopPhone: document.getElementById('st-phone').value,
+        shopLogo: currentLogoBase64,
         currency: document.getElementById('st-currency').value,
         taxRate: document.getElementById('st-tax').value,
       };
@@ -127,6 +186,9 @@ export function renderSettings(container) {
       document.getElementById('st-phone').value = s.shopPhone || '';
       document.getElementById('st-currency').value = s.currency || 'NGN';
       document.getElementById('st-tax').value = s.taxRate || 0;
+      
+      currentLogoBase64 = s.shopLogo || null;
+      updateLogoPreview(currentLogoBase64);
       
     } catch (err) {
       showToast('Failed to load settings', 'error');

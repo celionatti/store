@@ -72,8 +72,17 @@ export function renderAddWorker(container) {
           <label class="form-label" for="reg-role">Account Type <span class="text-danger">*</span></label>
           <select id="reg-role" class="form-select">
             <option value="worker">Worker (Sales & Customers Only)</option>
+            <option value="manager">Manager (Operations & Inventory)</option>
             <option value="admin">Admin (Full Access)</option>
           </select>
+        </div>
+
+        <div class="form-group" id="location-assignment-group">
+          <label class="form-label" for="reg-location">Store Assignment <span class="text-danger">*</span></label>
+          <select id="reg-location" class="form-select" required>
+            <option value="">Loading locations...</option>
+          </select>
+          <p class="text-sm text-muted mt-sm">This worker will only be able to view and manage inventory for their assigned store.</p>
         </div>
 
         <div style="margin-top: var(--space-xl); display: flex; justify-content: flex-end;">
@@ -84,6 +93,35 @@ export function renderAddWorker(container) {
       </form>
     </div>
   `;
+
+  // Fetch and populate locations
+  async function loadLocations() {
+    const locSelect = document.getElementById('reg-location');
+    try {
+      const data = await api.getLocations();
+      const locations = data.locations || data || [];
+      
+      if (!locSelect) return;
+      
+      locSelect.innerHTML = '<option value="">Select a Store...</option>';
+      locations.forEach(loc => {
+        const opt = document.createElement('option');
+        opt.value = loc._id;
+        opt.textContent = loc.name;
+        if (loc.isDefault) opt.selected = true;
+        locSelect.appendChild(opt);
+      });
+      
+      if (locations.length === 0) {
+        locSelect.innerHTML = '<option value="">No locations found. Please create one first.</option>';
+      }
+    } catch (err) {
+      if (locSelect) locSelect.innerHTML = '<option value="">Error loading locations</option>';
+      showToast('Failed to load locations', 'error');
+    }
+  }
+
+  loadLocations();
 
   const form = document.getElementById('worker-form');
   const regBtn = document.getElementById('save-btn');
@@ -112,6 +150,12 @@ export function renderAddWorker(container) {
     const parentPhone = document.getElementById('reg-parent-phone').value;
     const address = document.getElementById('reg-address').value;
     const role = document.getElementById('reg-role').value;
+    const locationId = document.getElementById('reg-location').value;
+
+    if (!locationId && role !== 'admin') {
+      showToast('Please assign a store to this worker', 'warning');
+      return;
+    }
 
     const originalText = regBtn.textContent;
     regBtn.textContent = 'Registering...';
@@ -120,7 +164,8 @@ export function renderAddWorker(container) {
     try {
       await api.register({
         name, username, password, role,
-        email, phone, image, parentName, parentPhone, address
+        email, phone, image, parentName, parentPhone, address,
+        locationId
       });
       
       showToast('Worker registered successfully!', 'success');

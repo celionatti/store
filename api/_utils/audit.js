@@ -11,6 +11,8 @@ async function logActivity(user, action, details) {
     const logEntry = {
       userId: user.id,
       username: user.username,
+      role: user.role,
+      locationId: user.locationId ? String(user.locationId) : null,
       action, // e.g., 'SALE_CREATED', 'PRODUCT_UPDATED'
       details, // e.g., 'Sold iPhone 13 (IMEI: 12345)'
       timestamp: new Date(),

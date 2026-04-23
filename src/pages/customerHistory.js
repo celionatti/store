@@ -75,10 +75,10 @@ export function renderCustomerHistory(container, params = {}) {
             <tbody>
               ${sales.map(s => `
                 <tr>
-                  <td>${formatDateTime(s.createdAt)}</td>
-                  <td><strong>${escapeHtml(s.productName)}</strong></td>
-                  <td>${s.quantity}</td>
-                  <td class="font-bold">${formatCurrency(s.totalAmount)}</td>
+                  <td data-label="Date">${formatDateTime(s.createdAt)}</td>
+                  <td data-label="Product"><strong>${escapeHtml(s.productName)}</strong></td>
+                  <td data-label="Qty">${s.quantity}</td>
+                  <td data-label="Total" class="font-bold">${formatCurrency(s.totalAmount)}</td>
                 </tr>
               `).join('')}
             </tbody>

@@ -91,6 +91,7 @@ module.exports = async function handler(req, res) {
         salt,
         hash,
         role: assignedRole,
+        locationId: body.locationId ? body.locationId.trim() : null,
         createdAt: new Date(),
         updatedAt: new Date(),
       };

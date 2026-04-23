@@ -2,6 +2,11 @@
  * MongoDB Connection Utility for Vercel Serverless Functions
  */
 const { MongoClient } = require('mongodb');
+const dns = require('dns');
+
+// Force Node to use Google's DNS to prevent 'querySrv ECONNREFUSED' 
+// occurring due to local Windows or VPN/ISP DNS resolution failures.
+dns.setServers(['8.8.8.8', '8.8.4.4']);
 
 let cachedClient = null;
 let cachedDb = null;

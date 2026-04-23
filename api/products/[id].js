@@ -7,6 +7,7 @@ const { connectToDatabase } = require('../_utils/db');
 const { validateProduct } = require('../_utils/validate');
 const { withAuth } = require('../_utils/auth');
 const { logActivity } = require('../_utils/audit');
+const { mapProductForLocation } = require('../_utils/stock');
 
 async function productIdHandler(req, res) {
   let { id } = req.query;
@@ -33,11 +34,18 @@ async function productIdHandler(req, res) {
       if (!product) {
         return res.status(404).json({ error: 'Product not found' });
       }
-      return res.status(200).json(product);
+
+      const locationId = req.user.locationId;
+      const isAdmin = ['admin', 'manager'].includes(req.user.role);
+      
+      const productData = await collection.findOne({ _id: new ObjectId(id) });
+      if (!productData) return res.status(404).json({ error: 'Product not found' });
+
+      return res.status(200).json({ product: mapProductForLocation(productData, locationId, isAdmin) });
     }
 
     if (req.method === 'PUT') {
-      if (req.user.role !== 'admin') {
+      if (!['admin', 'manager'].includes(req.user.role)) {
         return res.status(403).json({ error: 'Forbidden: Admin access required' });
       }
 
@@ -56,10 +64,12 @@ async function productIdHandler(req, res) {
       const existingFilter = { _id: { $ne: objectId }, $or: [] };
       if (body.barcode && body.barcode.trim()) {
         existingFilter.$or.push({ barcode: body.barcode.trim() });
+        existingFilter.$or.push({ "locationStock.itemBarcodes": body.barcode.trim() });
         existingFilter.$or.push({ itemBarcodes: body.barcode.trim() });
       }
       if (Array.isArray(body.itemBarcodes) && body.itemBarcodes.length > 0) {
         existingFilter.$or.push({ barcode: { $in: body.itemBarcodes } });
+        existingFilter.$or.push({ "locationStock.itemBarcodes": { $in: body.itemBarcodes } });
         existingFilter.$or.push({ itemBarcodes: { $in: body.itemBarcodes } });
       }
 
@@ -70,23 +80,49 @@ async function productIdHandler(req, res) {
         }
       }
 
+      const locationId = req.user.locationId;
+      
       const update = {
         $set: {
           name: body.name.trim(),
           sku: body.sku.trim(),
           barcode: body.barcode ? body.barcode.trim() : '',
-          itemBarcodes: Array.isArray(body.itemBarcodes) ? body.itemBarcodes.map(b => b.trim()).filter(Boolean) : [],
           category: (body.category || '').trim(),
           costPrice: parseFloat(body.costPrice) || 0,
           sellingPrice: parseFloat(body.sellingPrice) || 0,
-          quantity: parseInt(body.quantity) || 0,
           reorderLevel: parseInt(body.reorderLevel) || 10,
           supplierId: body.supplierId || null,
           updatedAt: new Date(),
         },
       };
 
-      const result = await collection.updateOne({ _id: objectId }, update);
+      // Handle localized stock update during general edit
+      // Note: This is a complex update because we need to update a specific element in an array
+      // We first check if the location already exists in the array
+      const existingProduct = await collection.findOne({ _id: objectId });
+      const currentStockArr = existingProduct.locationStock || [];
+      const hasLocation = currentStockArr.some(s => String(s.locationId) === String(locationId));
+
+      if (!hasLocation) {
+        // Migration/Creation: If no entry for this store yet, push a new one
+        update.$push = {
+          locationStock: {
+            locationId: String(locationId),
+            quantity: parseInt(body.quantity) || 0,
+            itemBarcodes: Array.isArray(body.itemBarcodes) ? body.itemBarcodes : []
+          }
+        };
+      } else {
+        // Positional update: update only the entry for THIS location
+        // We need to use arrayFilters for more precision if we want to do it in one atomic call, 
+        // but for simplicity and since we already fetched existingProduct, we'll do:
+        update.$set['locationStock.$[elem].quantity'] = parseInt(body.quantity) || 0;
+        update.$set['locationStock.$[elem].itemBarcodes'] = Array.isArray(body.itemBarcodes) ? body.itemBarcodes : [];
+      }
+
+      const updateOptions = hasLocation ? { arrayFilters: [{ 'elem.locationId': String(locationId) }] } : {};
+
+      const result = await collection.updateOne({ _id: objectId }, update, updateOptions);
       if (result.matchedCount === 0) {
         return res.status(404).json({ error: 'Product not found' });
       }

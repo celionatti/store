@@ -12,8 +12,8 @@ async function singleExpenseHandler(req, res) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  if (req.user.role !== 'admin') {
-    return res.status(403).json({ error: 'Forbidden: Admin access required' });
+  if (!['admin', 'manager'].includes(req.user.role)) {
+    return res.status(403).json({ error: 'Forbidden: Admin or Manager access required' });
   }
 
   try {
